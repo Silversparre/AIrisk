@@ -157,3 +157,25 @@ class LoginAttempt(db.Model):
     key = db.Column(db.String(64), primary_key=True)
     count = db.Column(db.Integer, nullable=False, default=0)
     window_start = db.Column(db.DateTime, nullable=False, default=now)
+
+
+class ClaudeExchange(db.Model):
+    """Human-initiated web handoff; imported content stays advisory until accepted."""
+    id = db.Column(db.Integer, primary_key=True)
+    revision = db.Column(db.Integer, nullable=False, default=1)
+    assessment_id = db.Column(db.Integer, db.ForeignKey('assessment.id'), nullable=False)
+    assessment = db.relationship('Assessment', backref='claude_exchanges')
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    author = db.relationship('User')
+    mode = db.Column(db.String(20), nullable=False)
+    workspace = db.Column(db.String(30), nullable=False)
+    model_label = db.Column(db.String(160), default='')
+    context_digest = db.Column(db.String(64), nullable=False)
+    request_context = db.Column(db.JSON, nullable=False)
+    prompt = db.Column(db.Text, nullable=False, default='')
+    response = db.Column(db.JSON)
+    accepted_risk_ids = db.Column(db.JSON)
+    created_at = db.Column(db.DateTime, nullable=False, default=now)
+    imported_at = db.Column(db.DateTime)
+    accepted_at = db.Column(db.DateTime)
+    __mapper_args__ = {'version_id_col': revision}

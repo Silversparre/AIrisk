@@ -21,6 +21,7 @@ flowchart LR
 | `airisk/catalog.py` | Versioned original scenarios, scope routing and source references |
 | `airisk/services.py` | Context snapshots, completeness, approval checks, monitoring signals and export payloads |
 | `airisk/web.py` | Input validation, authentication, permissions and HTTP workflows |
+| `airisk/claude.py` | Scoped Claude web/Enterprise prompts, response validation and explicit draft acceptance |
 | `airisk/cli.py` | Account administration and opt-in fictional examples |
 | `migrations/` | Explicit Alembic migrations; no automatic `create_all` in application startup |
 | `templates/`, `static/` | Accessible HTML forms, responsive views and progressive enhancements |
@@ -58,6 +59,6 @@ Optimistic versions on risks and assessments reject conflicting writes. Draft ri
 
 Gunicorn serves one worker with four threads by default. SQLite foreign keys and a busy timeout are enabled. The application is intended for a small internal workspace, not unbounded concurrent writes or multiple independent tenants. Container startup runs migrations and then the server; the health endpoint checks schema access. Deploy one application instance for this release. PostgreSQL, rolling migrations and multi-instance behavior have not been validated.
 
-There is no model API, background worker, vendor scraping or automatic document ingestion. Evidence consists of dated notes and optional links to an organization's existing document store. The application cannot verify the truth of an uploaded claim; a named person must review it. Browser exports and backups can contain confidential information and need the organization's normal handling controls.
+Claude assistance uses a human-controlled web handoff with preserved requests/responses and context fingerprints. Imported advice is validated and selected draft reasoning/ratings require explicit acceptance; reviewer critiques cannot change decisions. There is no direct model API call, background worker, vendor scraping or automatic document ingestion. See [Claude assistance](docs/CLAUDE_ASSISTANCE.md). Evidence consists of dated notes and optional links to an organization's existing document store. The application cannot verify the truth of an uploaded claim; a named person must review it. Browser exports and backups can contain confidential information and need the organization's normal handling controls.
 
 See [operations](docs/OPERATIONS.md) for startup, backup and recovery, and [the roadmap](docs/REVIEW_AND_ROADMAP.md) for the next product increments.

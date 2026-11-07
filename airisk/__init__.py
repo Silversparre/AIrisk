@@ -53,8 +53,10 @@ def create_app(config=None):
     Migrate(app, db, directory=str(root / 'migrations'))
     csrf.init_app(app)
     from .web import bp
+    from .claude import bp as claude_bp
     from .cli import register_commands
     app.register_blueprint(bp)
+    app.register_blueprint(claude_bp)
     register_commands(app)
 
     @app.after_request
