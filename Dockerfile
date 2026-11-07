@@ -1,61 +1,19 @@
-# Multi-stage build for smaller image size
-# Stage 1: Build stage
-FROM python:3.11-alpine AS builder
-
-# Install build dependencies
-RUN apk add --no-cache gcc musl-dev linux-headers
-
-# Set working directory
+FROM python:3.12-slim
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 APP_ENV=production
 WORKDIR /app
-
-# Create virtual environment
-RUN python -m venv /opt/venv
-# Enable venv
-ENV PATH="/opt/venv/bin:$PATH"
-
-# Copy requirements first for better layer caching
 COPY requirements.txt .
-
-# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
-
-# Stage 2: Runtime stage
-FROM python:3.11-alpine
-
-# Set working directory
-WORKDIR /app
-
-# Copy virtual environment from builder
-COPY --from=builder /opt/venv /opt/venv
-
-# Enable venv
-ENV PATH="/opt/venv/bin:$PATH"
-
-# Copy application files
-COPY app.py models.py risk_logic.py ./
-COPY static ./static
+RUN useradd --create-home --uid 10001 appuser
+COPY app.py ./
+COPY airisk ./airisk
+COPY migrations ./migrations
 COPY templates ./templates
-
-# Create instance directory for SQLite database
-RUN mkdir -p instance
-
-# Make port 5000 available
-EXPOSE 5000
-
-# Define environment variables
-ENV FLASK_APP=app.py \
-    FLASK_RUN_HOST=0.0.0.0 \
-    PYTHONUNBUFFERED=1
-
-# Create a non-root user for security
-RUN adduser -D -u 1000 appuser && \
-    chown -R appuser:appuser /app
-
+COPY static ./static
+COPY entrypoint.sh ./
+RUN mkdir -p /app/instance && chown -R appuser:appuser /app && chmod +x /app/entrypoint.sh
 USER appuser
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:5000/ || exit 1
-
-# Run the application
-CMD ["flask", "run"]
+VOLUME /app/instance
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2)" || exit 1
+ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "1", "--threads", "4", "--timeout", "60", "app:create_app()"]

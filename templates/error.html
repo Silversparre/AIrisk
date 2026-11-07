@@ -1,0 +1,1 @@
+{% extends 'base.html' %}{% block content %}<section class="panel narrow"><p class="eyebrow">{{ error.code }}</p><h1>{{ error.name }}</h1><p>{{ error.description }}</p><p><a class="button" href="{{ url_for('web.dashboard') }}">Return to workspace</a></p><p class="muted">If you were editing a form, use your browser’s Back button to check your answers.</p></section>{% endblock %}

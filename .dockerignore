@@ -1,0 +1,11 @@
+.git
+.venv
+.env
+instance
+__pycache__
+**/__pycache__
+node_modules
+test-results
+docs/archive
+*.pdf
+*.pptx

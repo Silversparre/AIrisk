@@ -1,0 +1,64 @@
+{
+  "empty_result": {
+    "status": 200,
+    "very_low": true
+  },
+  "empty_calculation": "Very Low",
+  "invalid_step_statuses": {
+    "0": 200,
+    "11": 200,
+    "999": 200
+  },
+  "missing_csrf_status": 400,
+  "skip_to_end": {
+    "status": 200,
+    "very_low": true
+  },
+  "complete_assessment": {
+    "post_statuses": [
+      302,
+      302,
+      302,
+      302,
+      302,
+      302,
+      302,
+      302,
+      302,
+      302
+    ],
+    "result_status": 200,
+    "high": true,
+    "database_rows": {
+      "assessments": 0,
+      "risk_entries": 0
+    }
+  },
+  "back_navigation_prefills_value": false,
+  "review_step_displays_answers": false,
+  "cookie_readable_without_signing_key": true,
+  "cookie_secure": false,
+  "cookie_httponly": true,
+  "default_key_active": true,
+  "arbitrary_fields_and_invalid_score": {
+    "status": 200,
+    "unknown_impact": true,
+    "very_high_risk": true,
+    "arbitrary_field_accepted": true
+  },
+  "negative_scores": {
+    "threat_source": null,
+    "threat_event": null,
+    "capability": null,
+    "intent": null,
+    "targeting": null,
+    "vulnerability": null,
+    "likelihood_initiation": "Unknown",
+    "likelihood_impact": "Unknown",
+    "overall_likelihood": "Very Low",
+    "impact_level": "Unknown",
+    "risk_level": "Very Low",
+    "risk_score": 1
+  },
+  "start_get_discards_assessment": true
+}

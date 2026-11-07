@@ -1,342 +1,63 @@
-# Architecture Overview - Ain't all Risky Bizz
+# AIrisk architecture
 
-## Table of Contents
-- [System Overview](#system-overview)
-- [Architecture Diagram](#architecture-diagram)
-- [Technology Stack](#technology-stack)
-- [Component Details](#component-details)
-- [Data Flow](#data-flow)
-- [Security Features](#security-features)
-- [Deployment](#deployment)
-
-## System Overview
-
-**Ain't all Risky Bizz** is a web-based risk assessment application built on the NIST 800-30 framework. It provides an interactive wizard-driven interface for conducting cybersecurity risk assessments, guiding users through threat identification, vulnerability analysis, and risk calculation.
-
-### Purpose
-- Enable structured cybersecurity risk assessments
-- Provide step-by-step guidance through the NIST 800-30 methodology
-- Calculate semi-quantitative risk scores based on industry standards
-- Store assessment data for future reference and analysis
-
-## Architecture Diagram
+AIrisk is a server-rendered Flask application for one organization's AI adoption decisions. The current domain model replaces the original generic NIST SP 800-30 wizard. The original generated reports are retained only as historical material in `docs/archive/`.
 
 ```mermaid
-graph TB
-    subgraph "Client Layer"
-        Browser[Web Browser]
-        HTML[HTML Templates]
-        CSS[CSS Styling]
-        JS[JavaScript]
-    end
-    
-    subgraph "Application Layer"
-        Flask[Flask Web Framework]
-        Routes[Route Handlers]
-        CSRF[CSRF Protection]
-        Sessions[Session Management]
-    end
-    
-    subgraph "Business Logic Layer"
-        RiskLogic[Risk Calculation Engine]
-        Models[Data Models]
-        Assessment[Assessment Logic]
-    end
-    
-    subgraph "Data Layer"
-        SQLite[(SQLite Database)]
-        SQLAlchemy[SQLAlchemy ORM]
-    end
-    
-    Browser -->|HTTP/HTTPS| Flask
-    Flask --> Routes
-    Routes --> CSRF
-    Routes --> Sessions
-    Routes --> RiskLogic
-    Routes --> Models
-    Models --> SQLAlchemy
-    SQLAlchemy --> SQLite
-    Flask --> HTML
-    HTML --> CSS
-    HTML --> JS
-    
-    style Flask fill:#4CAF50
-    style RiskLogic fill:#2196F3
-    style SQLite fill:#FF9800
+flowchart LR
+  Browser[Authenticated browser] --> Web[Flask routes and authorization]
+  Web --> Services[Assessment lifecycle and decision checks]
+  Services --> Catalog[Versioned AI scenarios and source mappings]
+  Services --> DB[(SQLite with migrations)]
+  Web --> Views[Jinja templates and local CSS/JS]
+  Web --> Reports[JSON / CSV / printable report]
 ```
 
-## Technology Stack
+## Domain and responsibilities
 
-### Backend
-| Component | Technology | Version | Purpose |
-|-----------|-----------|---------|---------|
-| **Runtime** | Python | 3.11 | Application runtime |
-| **Web Framework** | Flask | 3.1.2 | HTTP server and routing |
-| **ORM** | SQLAlchemy | 2.0.44 | Database abstraction |
-| **Database** | SQLite | 3.x | Data persistence |
-| **Security** | Flask-WTF | 1.2.1 | CSRF protection |
-| **Extensions** | Flask-SQLAlchemy | 3.1.1 | Flask-SQLAlchemy integration |
+| Component | Responsibility |
+| --- | --- |
+| `airisk/__init__.py` | Application factory, configuration, CSRF, security headers and conflict handling |
+| `airisk/models.py` | Users, vendors, systems, assessments, risks, evidence, action follow-up, audit events and login attempts |
+| `airisk/catalog.py` | Versioned original scenarios, scope routing and source references |
+| `airisk/services.py` | Context snapshots, completeness, approval checks, monitoring signals and export payloads |
+| `airisk/web.py` | Input validation, authentication, permissions and HTTP workflows |
+| `airisk/cli.py` | Account administration and opt-in fictional examples |
+| `migrations/` | Explicit Alembic migrations; no automatic `create_all` in application startup |
+| `templates/`, `static/` | Accessible HTML forms, responsive views and progressive enhancements |
 
-### Frontend
-| Component | Technology | Purpose |
-|-----------|-----------|---------|
-| **Markup** | HTML5 | Page structure |
-| **Styling** | CSS3 | Visual design |
-| **Interactivity** | Vanilla JavaScript | Client-side behavior |
-| **Icons/Assets** | PNG Images | Branding |
+Each assessment snapshots the system context, relevant vendor facts, source metadata and selected risk definitions. Later editorial changes do not rewrite its scenario text or mappings. System/vendor changes are detected against the snapshot. The current catalog review deadline and evidence expiry are evaluated at read/decision time and can flag a historical approval for renewed review.
 
-### DevOps
-| Component | Technology | Purpose |
-|-----------|-----------|---------|
-| **Containerization** | Docker | Application packaging |
-| **Base Image** | Python 3.11 Alpine | Minimal container footprint |
-| **Build System** | Multi-stage Docker | Optimized image size |
-
-## Component Details
-
-### 1. Application Core (`app.py`)
-- **Flask Application**: Main application instance and configuration
-- **Route Handlers**: HTTP endpoint definitions
-- **Security Configuration**: 
-  - CSRF protection via Flask-WTF
-  - Secure session cookies (configurable for production)
-  - Environment-based secret key management
-- **Database Initialization**: Automatic table creation on startup
-
-### 2. Data Models (`models.py`)
-- **Assessment Model**: Stores assessment metadata and timestamps
-- **RiskEntry Model**: Stores individual risk assessment entries
-- **Relationships**: Defines associations between assessments and entries
-- **Schema Management**: Handled by SQLAlchemy ORM
-
-### 3. Risk Calculation Engine (`risk_logic.py`)
-- **NIST 800-30 Implementation**: Semi-quantitative risk matrices
-- **Likelihood Calculation**: Combines initiation and impact likelihood
-- **Risk Level Determination**: Matrix-based risk scoring (Very Low → Very High)
-- **Qualitative Descriptors**: Maps numeric scores to risk categories
-
-### 4. Templates (`templates/`)
-- **base.html**: Master template with navigation and layout
-- **index.html**: Landing page
-- **about.html**: Information about the application
-- **assessment_wizard.html**: 10-step assessment wizard interface
-- **result.html**: Risk assessment results display
-
-### 5. Static Assets (`static/`)
-- **style.css**: Application styling and responsive design (9.8 KB)
-- **script.js**: Client-side interactivity (516 B)
-- **favicon.png**: Application branding (377 KB)
-
-### 6. Testing (`tests/`)
-- **test_risk_logic.py**: Unit tests for risk calculation algorithms
-- **Test Framework**: Python unittest
-
-### 7. Report Generation Scripts
-- **generate_architecture_presentation.py**: Creates architecture diagrams
-- **generate_security_report.py**: Generates security assessment reports
-- **generate_remediation_report.py**: Creates remediation documentation
-
-## Data Flow
-
-### Assessment Workflow
+## Lifecycle
 
 ```mermaid
-sequenceDiagram
-    participant User
-    participant Browser
-    participant Flask
-    participant Session
-    participant RiskLogic
-    participant Database
-
-    User->>Browser: Navigate to /
-    Browser->>Flask: GET /
-    Flask->>Browser: Render index.html
-    
-    User->>Browser: Click "Start Assessment"
-    Browser->>Flask: GET /assessment/start
-    Flask->>Session: Create new session
-    Session-->>Flask: Session initialized
-    Flask->>Browser: Redirect to step 1
-    
-    loop For each step (1-10)
-        Browser->>Flask: GET /assessment/step/<id>
-        Flask->>Browser: Render wizard form
-        User->>Browser: Fill form & submit
-        Browser->>Flask: POST /assessment/step/<id>
-        Flask->>Session: Save step data
-        Flask->>Browser: Redirect to next step
-    end
-    
-    Browser->>Flask: GET /assessment/result
-    Flask->>Session: Retrieve assessment data
-    Flask->>RiskLogic: Calculate risk(data)
-    RiskLogic-->>Flask: Risk results
-    Flask->>Database: Save assessment (optional)
-    Flask->>Browser: Render result.html
+stateDiagram-v2
+  [*] --> Draft
+  Draft --> InReview: Complete every risk or justify exclusion
+  InReview --> Draft: Reviewer requests changes
+  InReview --> Approved: Evidence and applicability checks pass
+  InReview --> Conditional: Checks pass; remaining actions assigned
+  InReview --> Rejected: Record reason not to proceed
+  Approved --> [*]
+  Conditional --> [*]
+  Rejected --> [*]
 ```
 
-### Risk Calculation Process
+Terminal decisions are immutable through the application. A conditional decision can acquire separate action-completion records; another reviewer verifies completion. These records do not alter the original ratings or decision. Reassessment creates a new record from current context. The initial release intentionally asks the author to reassess rather than automatically copying potentially outdated answers.
 
-1. **Input Collection**: Gather threat, vulnerability, and impact data (10 steps)
-2. **Likelihood Calculation**: Combine initiation and impact likelihoods
-3. **Risk Matrix Lookup**: Map likelihood × impact to risk level
-4. **Result Presentation**: Display risk score with recommendations
+Risk ratings use a documented local likelihood × impact scale. Unknown inputs have no score. Server-side validation rejects out-of-range values. High residual risks require conditional treatment with an open assigned action; critical residual risks block approval. None of these bands is an EU legal risk class. EU screening is conservative routing, followed by a recorded human applicability review.
 
-## Security Features
+## Access and integrity
 
-### Implemented Protections
+All active members can read all records in this single workspace. The assessment author, system owner or administrator edits a current draft. Reviewers/administrators verify evidence and decide assessments, but cannot verify their own evidence or approve their own authored assessment. Administrators manage accounts; disabling an account or resetting its password revokes existing sessions through a server-side version check.
 
-| Feature | Implementation | Purpose |
-|---------|---------------|---------|
-| **CSRF Protection** | Flask-WTF CSRFProtect | Prevents cross-site request forgery |
-| **Secure Sessions** | Flask session cookies | HTTPOnly cookies enabled |
-| **Secret Key Management** | Environment variables | Prevents hardcoded secrets |
-| **Non-root User** | Docker USER directive | Reduces container attack surface |
-| **Input Validation** | Flask form handling | Prevents injection attacks |
-| **Debug Mode** | Disabled in production | Prevents information disclosure |
+Passwords use Werkzeug's scrypt hashing. Cookies contain the user identity, session version and framework session metadata, not assessment content. Every mutation requires CSRF protection. Production requires a sufficiently long externally supplied secret and uses Secure/HttpOnly/SameSite cookies. Request sizes are bounded, templates autoescape text, external evidence links require HTTPS and are never fetched by the server, and CSV exports neutralize formula prefixes.
 
-### Production Recommendations
+Optimistic versions on risks and assessments reject conflicting writes. Draft risk edits also advance the assessment version to conflict with simultaneous lifecycle transitions. Application audit events record account, context, evidence and decision changes. This audit log is not tamper-proof against a database/server administrator and does not claim forensic-grade event sourcing.
 
-> [!WARNING]
-> Before deploying to production, ensure the following:
+## Deployment and storage
 
-1. **Enable HTTPS**: Set `SESSION_COOKIE_SECURE = True`
-2. **Set Strong Secret Key**: Use cryptographically random `SECRET_KEY`
-3. **Use Production WSGI Server**: Replace Flask development server with Gunicorn/uWSGI
-4. **Enable Database Backups**: Implement regular SQLite backup strategy
-5. **Configure Rate Limiting**: Add request throttling to prevent abuse
-6. **Review Security Headers**: Implement CSP, HSTS, X-Frame-Options
+Gunicorn serves one worker with four threads by default. SQLite foreign keys and a busy timeout are enabled. The application is intended for a small internal workspace, not unbounded concurrent writes or multiple independent tenants. Container startup runs migrations and then the server; the health endpoint checks schema access. Deploy one application instance for this release. PostgreSQL, rolling migrations and multi-instance behavior have not been validated.
 
-## Deployment
+There is no model API, background worker, vendor scraping or automatic document ingestion. Evidence consists of dated notes and optional links to an organization's existing document store. The application cannot verify the truth of an uploaded claim; a named person must review it. Browser exports and backups can contain confidential information and need the organization's normal handling controls.
 
-### Docker Deployment (Recommended)
-
-The application includes an optimized multi-stage Dockerfile:
-
-**Build the Image:**
-```bash
-docker build -t aint-all-risky-bizz:latest .
-```
-
-**Run the Container:**
-```bash
-docker run -d -p 5000:5000 \
-  -e SECRET_KEY="your-secret-key-here" \
-  --name risky-app \
-  aint-all-risky-bizz:latest
-```
-
-**Container Features:**
-- **Base Image**: Python 3.11 Alpine Linux (lightweight)
-- **Multi-stage Build**: Separates build dependencies from runtime
-- **Image Size**: ~169 MB (optimized)
-- **Health Checks**: Built-in container health monitoring
-- **Non-root User**: Runs as unprivileged `appuser` (UID 1000)
-
-### Local Development
-
-**Install Dependencies:**
-```bash
-pip install -r requirements.txt
-```
-
-**Run Application:**
-```bash
-python app.py
-```
-
-**Access Application:**
-Navigate to `http://localhost:5000`
-
-### Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `FLASK_APP` | `app.py` | Flask application entry point |
-| `FLASK_RUN_HOST` | `0.0.0.0` | Bind address |
-| `SECRET_KEY` | `dev-secret-key-change-in-prod` | Flask secret key |
-| `SESSION_COOKIE_SECURE` | `False` | Enable for HTTPS only |
-| `PYTHONUNBUFFERED` | `1` | Disable Python output buffering |
-
-## Project Structure
-
-```
-d:/agy-projects/
-├── app.py                          # Main Flask application
-├── models.py                       # Database models (SQLAlchemy)
-├── risk_logic.py                   # NIST 800-30 risk calculation engine
-├── requirements.txt                # Python dependencies
-├── Dockerfile                      # Multi-stage Docker build
-├── README.md                       # Project documentation
-├── ARCHITECTURE.md                 # This file
-│
-├── templates/                      # Jinja2 HTML templates
-│   ├── base.html                   # Base layout template
-│   ├── index.html                  # Landing page
-│   ├── about.html                  # About page
-│   ├── assessment_wizard.html      # 10-step wizard
-│   └── result.html                 # Results display
-│
-├── static/                         # Static assets
-│   ├── style.css                   # Application styles
-│   ├── script.js                   # Client-side JavaScript
-│   └── favicon.png                 # Application icon
-│
-├── instance/                       # Instance-specific files
-│   └── risk_assessment.db          # SQLite database
-│
-├── tests/                          # Test suite
-│   └── test_risk_logic.py          # Risk logic unit tests
-│
-└── reports/                        # Generated reports
-    ├── Architecture_Overview.pdf
-    ├── Architecture_Overview.pptx
-    ├── Security_Review_Report.pdf
-    ├── Security_Review_Report.pptx
-    ├── Remediation_Report.pdf
-    └── Remediation_Report.pptx
-```
-
-## Database Schema
-
-### Assessment Table
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | INTEGER | Primary key |
-| `created_at` | DATETIME | Timestamp of creation |
-| `updated_at` | DATETIME | Timestamp of last update |
-
-### RiskEntry Table
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | INTEGER | Primary key |
-| `assessment_id` | INTEGER | Foreign key to Assessment |
-| `threat_source` | TEXT | Identified threat source |
-| `threat_event` | TEXT | Threat event description |
-| `vulnerability` | TEXT | Vulnerability description |
-| `likelihood` | INTEGER | Calculated likelihood (1-5) |
-| `impact` | INTEGER | Impact level (1-5) |
-| `risk_level` | TEXT | Calculated risk level |
-
-## Performance Considerations
-
-- **Session Storage**: Uses server-side sessions (can be migrated to Redis for scaling)
-- **Database**: SQLite suitable for low-to-medium traffic; consider PostgreSQL for high concurrency
-- **Static Assets**: Minimal bundle size (~387 KB total)
-- **Container**: Optimized Alpine-based image for fast startup and low memory footprint
-
-## Future Enhancements
-
-- [ ] Export assessments to PDF/CSV
-- [ ] Multi-user support with authentication
-- [ ] Assessment templates and presets
-- [ ] Historical trend analysis
-- [ ] API endpoints for integration
-- [ ] Real-time collaboration features
-
----
-
-**Version**: 1.0  
-**Last Updated**: 2025-11-28  
-**Maintained By**: silver3parre
+See [operations](docs/OPERATIONS.md) for startup, backup and recovery, and [the roadmap](docs/REVIEW_AND_ROADMAP.md) for the next product increments.

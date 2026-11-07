@@ -1,0 +1,79 @@
+name: Validate AI adoption workspace
+on:
+  push:
+    branches: [main, 'feat/**']
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pip-audit==2.10.1
+      - run: pip-audit -r requirements.txt
+  workflows:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ['3.11', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python -m unittest discover -s tests -v
+      - run: |
+          export AIRISK_INSTANCE="$RUNNER_TEMP/airisk-migrations"
+          python -m flask --app app db upgrade
+          python -m flask --app app db check
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: pip install -r requirements.txt
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: |
+          export AIRISK_INSTANCE="$RUNNER_TEMP/airisk-browser"
+          python -m flask --app app db upgrade
+          gunicorn --bind 127.0.0.1:5057 --workers 1 --threads 2 'app:create_app()' &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:5057/health; then break; fi
+            sleep 1
+          done
+          npm run test:browser
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-evidence
+          path: test-results/
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          docker build -t airisk:test .
+          export SECRET_KEY="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
+          docker run --detach --name airisk-test --env SECRET_KEY -p 127.0.0.1:5058:8080 airisk:test
+          trap 'docker logs airisk-test; docker rm -f airisk-test' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:5058/health; then exit 0; fi
+            sleep 1
+          done
+          exit 1
