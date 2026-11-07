@@ -1,19 +1,13 @@
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('Ain’t all Risky Bizz App Loaded');
+document.querySelectorAll('[data-filter]').forEach(input => {
+  input.addEventListener('input', () => {
+    const table = document.getElementById(input.dataset.filter);
+    table.querySelectorAll('tbody tr').forEach(row => {
+      row.hidden = !row.textContent.toLowerCase().includes(input.value.toLowerCase());
+    });
+  });
 });
-
-function toggleGuidance(id) {
-    const element = document.getElementById(id);
-    if (element.classList.contains('hidden')) {
-        element.classList.remove('hidden');
-    } else {
-        element.classList.add('hidden');
-    }
-}
-
-function fillVulnerability(value) {
-    const input = document.getElementById('vulnerability');
-    if (input) {
-        input.value = value;
-    }
+document.querySelectorAll('[data-print]').forEach(button => button.addEventListener('click', () => window.print()));
+if (location.hash) {
+  const target = document.getElementById(location.hash.slice(1));
+  if (target && target.tagName === 'DETAILS') target.open = true;
 }
