@@ -58,6 +58,36 @@ const errors = [];
       await page.waitForURL(/\/assessments\/\d+$/);
       return page.url();
     }
+    async function claudeHandoff(mode) {
+      await page.getByRole('link',{name:'Claude assistance',exact:true}).click();
+      await page.getByLabel('Claude workspace',{exact:true}).selectOption('Claude Enterprise');
+      await page.getByLabel('How should Claude help?',{exact:true}).selectOption(mode);
+      for (const box of await page.locator('input[name="risk_ids"]').all()) await box.uncheck();
+      await page.locator('input[name="risk_ids"]').first().check();
+      await page.getByRole('button',{name:'Prepare prompt',exact:true}).click();
+      await page.waitForURL(/\/claude\/\d+$/);
+      const prompt = await page.getByLabel('Prepared prompt',{exact:true}).inputValue();
+      const shape = prompt.match(/RESPONSE SHAPE[^\n]*\n([\s\S]*?)\n\nASSESSMENT DATA:/);
+      assert(shape,'The prompt contains a response schema');
+      // This fixture exercises the handoff contract; it does not call Claude.
+      const suggestion = JSON.parse(shape[1]);
+      suggestion.summary='Synthetic Claude-response fixture for the browser workflow.';
+      suggestion.risks[0].rationale='Synthetic suggested reasoning: validate source freshness before relying on answers.';
+      suggestion.risks[0].likelihood=3;
+      suggestion.risks[0].impact=4;
+      await page.getByLabel('Model name shown in Claude (optional)').fill('Synthetic browser fixture');
+      await page.getByLabel('Claude’s JSON response').fill(JSON.stringify(suggestion));
+      await page.getByRole('button',{name:'Preview suggestions',exact:true}).click();
+      assert(await page.getByRole('heading',{name:'Claude’s suggestions',exact:true}).isVisible());
+      if (mode==='draft') {
+        await page.locator('input[name="risk_ids"]').check();
+        await page.getByLabel('I reviewed the selected reasoning and ratings against the available evidence.').check();
+        await page.getByRole('button',{name:'Apply selected suggestions to draft',exact:true}).click();
+      } else {
+        assert.equal(await page.getByRole('button',{name:'Apply selected suggestions to draft',exact:true}).count(),0);
+        await page.getByRole('link',{name:'Return to review and decision →',exact:true}).click();
+      }
+    }
     const assessmentUrl = await createSystem('[QA] Internal policy assistant');
     const aid = assessmentUrl.split('/').pop();
     await page.getByText('Add a risk specific to this use case', {exact:true}).click();
@@ -66,6 +96,7 @@ const errors = [];
     await page.getByLabel('Proposed control guidance').fill('Test the withdrawal and replacement process with a synthetic policy.');
     await page.getByLabel('Evidence needed').fill('A dated withdrawal and retrieval test for the deployed configuration.');
     await page.getByRole('button', {name:'Add custom risk',exact:true}).click();
+    await claudeHandoff('draft');
     await page.locator('#evidence summary').click();
     await page.getByLabel('Evidence title').fill('Synthetic permission and quality evaluation');
     await page.getByLabel('Review or expiry date').fill(future);
@@ -112,6 +143,7 @@ const errors = [];
     await page.getByLabel('Password',{exact:true}).fill(password);
     await page.getByRole('button',{name:'Sign in',exact:true}).click();
     await page.goto(assessmentUrl);
+    await claudeHandoff('review');
     await page.getByLabel('Role, applicable obligations, timing and rationale').fill('Synthetic review: deployer role; no prohibited or Annex III use in this fixture. Record literacy, transparency and review dates. Sources: Articles 5, 6, 26 and 50 of the current EU AI Act.');
     await page.getByRole('button',{name:'Save applicability review',exact:true}).click();
     await page.getByLabel('Reason, restrictions and accepted residual risks').fill('Approved for synthetic workflow testing only, within the recorded purpose. Reassess on model, data or vendor changes.');
@@ -124,6 +156,7 @@ const errors = [];
     assert.equal(payload.state,'approved');
     assert.equal(payload.risks.length,riskIds.length);
     assert.deepEqual(payload.approval_blockers,[]);
+    assert.equal(payload.claude_assistance.length,2);
     const csv = await page.request.get(base+'/assessments/'+aid+'/export.csv');
     assert.equal(csv.status(),200);
     await page.goto(base+'/assessments/'+aid+'/export.html');
@@ -148,7 +181,7 @@ const errors = [];
     assert(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),'Mobile assessment must not overflow horizontally');
     assert.deepEqual(errors,[]);
     fs.rmSync('test-results/failure.png', {force:true});
-    console.log(JSON.stringify({status:'passed',journeys:['local setup','team creation','vendor due diligence','internal RAG assessment','custom AI risk','independent evidence verification','reviewer change request and resubmission','approval','JSON/CSV/PDF export','predictive hiring triage','agentic risk routing','mobile layout'],risksAssessed:riskIds.length,consoleErrors:errors.length},null,2));
+    console.log(JSON.stringify({status:'passed',journeys:['local setup','team creation','vendor due diligence','internal RAG assessment','custom AI risk','Claude draft handoff with synthetic response','independent evidence verification','reviewer change request and resubmission','Claude review handoff with synthetic response','approval','JSON/CSV/PDF export','predictive hiring triage','agentic risk routing','mobile layout'],risksAssessed:riskIds.length,consoleErrors:errors.length},null,2));
   } catch(error) {
     await page.screenshot({path:'test-results/failure.png',fullPage:true});
     throw error;

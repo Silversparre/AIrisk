@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% from 'macros.html' import csrf,badge with context %}
+{% block title %}Claude assistance{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div>
+    <p class="eyebrow">Claude assistance · assessment #{{ a.id }}</p>
+    <h1>A second perspective on your AI risks.</h1>
+    <p class="lead">Prepare context for Claude, bring its suggestions back, and decide which reasoning belongs in your assessment.</p>
+  </div>
+  <a class="button secondary" href="{{ url_for('web.assessment',assessment_id=a.id) }}">Back to assessment</a>
+</div>
+<section class="panel">
+  <h2>{{ a.snapshot.name }}</h2>
+  <p>This workflow works with Claude.ai and a Claude Enterprise workspace. Copy or download the prepared prompt, use it in your chosen Claude workspace, then paste the structured response back here.</p>
+  <p class="muted">You control what you share with Claude. Preparation saves a local request; sharing happens when you paste or upload it in Claude. Use your organization’s approved workspace for organizational information.</p>
+  {% if can_draft or can_review %}
+  <form method="post" class="stack">
+    {{ csrf() }}
+    <div class="grid two">
+      <label>Claude workspace<select name="workspace" aria-label="Claude workspace">{% for w in workspaces %}<option>{{ w }}</option>{% endfor %}</select></label>
+      <label>How should Claude help?<select name="mode" aria-label="How should Claude help?">{% if can_draft %}<option value="draft">Draft risk reasoning and provisional ratings</option>{% endif %}{% if can_review %}<option value="review">Challenge the assessment for independent review</option>{% endif %}</select></label>
+    </div>
+    <fieldset>
+      <legend>Risks to include</legend>
+      <p class="muted">Choose a focused set to keep the prompt manageable. Up to 30 risks per request.</p>
+      {% for r in a.risks %}
+      <label class="check"><input type="checkbox" name="risk_ids" value="{{ r.id }}" {% if r.id in suggested_ids %}checked{% endif %}>{{ r.definition.title }} · {{ 'complete' if complete(r) else 'needs assessment' }}</label>
+      {% endfor %}
+    </fieldset>
+    <label class="check"><input type="checkbox" name="include_evidence" value="yes"> Include evidence notes and document links</label>
+    <p class="hint">The prompt includes system/vendor context and the selected risk answers. Evidence notes are optional. Without evidence, Claude must leave residual ratings unknown. Inspect the complete prompt before sharing it.</p>
+    <button>Prepare prompt</button>
+  </form>
+  {% else %}
+  <p class="notice">Draft assistance is available to the owner or author of a current draft. Review assistance is available to an independent reviewer while the assessment is in review.</p>
+  {% endif %}
+</section>
+<section class="panel">
+  <h2>Previous requests</h2>
+  {% for e in exchanges %}
+  <a class="list-row" href="{{ url_for('claude.exchange',exchange_id=e.id) }}">
+    <div><strong>{{ 'Draft assistance' if e.mode=='draft' else 'Review critique' }} #{{ e.id }}</strong><small>{{ e.workspace }} · {{ e.author.name }} · {{ e.created_at.strftime('%d %b %Y %H:%M') }} UTC</small></div>
+    {{ badge('Applied' if e.accepted_at else 'Suggestions imported' if e.response else 'Prompt prepared') }}
+  </a>
+  {% else %}<p class="muted">No Claude requests have been prepared for this assessment.</p>{% endfor %}
+</section>
+{% endblock %}

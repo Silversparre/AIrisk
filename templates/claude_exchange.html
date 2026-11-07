@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% from 'macros.html' import csrf,badge with context %}
+{% block title %}Claude request #{{ e.id }}{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div>
+    <p class="eyebrow">{{ e.workspace }} · {{ 'Draft assistance' if e.mode=='draft' else 'Review critique' }} #{{ e.id }}</p>
+    <h1>{{ a.snapshot.name }}</h1>
+    <p class="lead">{{ 'Review the proposed reasoning and ratings before adding them to your draft.' if e.mode=='draft' else 'Use this critique to guide your independent review and follow-up questions.' }}</p>
+    <small>Prepared by {{ e.author.name }} · {{ e.created_at.strftime('%d %b %Y %H:%M') }} UTC{% if e.model_label %} · Model reported by user: {{ e.model_label }}{% endif %}</small>
+  </div>
+  <a class="button secondary" href="{{ url_for('claude.start',assessment_id=a.id) }}">All Claude requests</a>
+</div>
+{% if e.accepted_at %}
+<div class="notice success">The selected suggestions were applied to the draft on {{ e.accepted_at.strftime('%d %b %Y %H:%M') }} UTC. <a href="{{ url_for('web.assessment',assessment_id=a.id) }}">Continue the assessment →</a></div>
+{% elif is_changed %}
+<div class="notice warning">The assessment, vendor facts or evidence changed since this prompt was prepared. <a href="{{ url_for('claude.start',assessment_id=a.id) }}">Prepare a fresh prompt</a> to use current information.</div>
+{% endif %}
+{% if error %}<div class="notice error" role="alert">{{ error }}</div>{% endif %}
+{% if not e.response %}
+<section class="panel">
+  <h2>1. Take the context to Claude</h2>
+  <p>Inspect the prompt, then copy it into a new conversation in your chosen Claude workspace. Claude will return the structured response used in the next step.</p>
+  <label>Prepared prompt<textarea id="claude-prompt" aria-label="Prepared prompt" readonly rows="12" class="prompt-text">{{ e.prompt }}</textarea></label>
+  <div class="buttons prompt-actions">
+    <button type="button" data-copy="claude-prompt">Copy prompt</button>
+    <a class="button secondary" href="{{ url_for('claude.download_prompt',exchange_id=e.id) }}">Download prompt</a>
+    <a class="button secondary" href="https://claude.ai/" target="_blank" rel="noopener noreferrer">Open Claude ↗</a>
+  </div>
+  <p class="muted" data-copy-status role="status"></p>
+  <p class="hint">For Enterprise, select your organization’s workspace in Claude before sharing the prompt. The workspace label here records your chosen route; it does not authenticate a Claude account.</p>
+</section>
+{% if is_owner and not is_changed %}
+<section class="panel">
+  <h2>2. Bring back Claude’s suggestions</h2>
+  <form method="post" enctype="multipart/form-data" action="{{ url_for('claude.import_response',exchange_id=e.id) }}" class="stack">
+    {{ csrf() }}
+    <label>Model name shown in Claude (optional)<input name="model_label" maxlength="160" placeholder="Record the model shown in your conversation"></label>
+    <label>Claude’s JSON response<textarea name="response" aria-label="Claude’s JSON response" required maxlength="90000" rows="12" class="prompt-text" placeholder="Paste the complete JSON response here.">{{ raw }}</textarea></label>
+    <button>Preview suggestions</button>
+  </form>
+</section>
+{% endif %}
+{% else %}
+<section class="panel">
+  <h2>Claude’s suggestions</h2>
+  <p class="preserve">{{ e.response.summary }}</p>
+  <p class="hint">Imported text is AI-generated advice. Check its claims against the evidence and primary sources. Proposed controls are ideas to evaluate; record implemented controls in the assessment.</p>
+</section>
+<form method="post" action="{{ url_for('claude.accept',exchange_id=e.id) }}" class="stack">
+  {{ csrf() }}
+  {% for item in e.response.risks %}{% set r=risks[item.risk_id] %}
+  <section class="panel">
+    <h2>{{ r.definition.title }}</h2>
+    {% if e.mode=='draft' and is_owner and not e.accepted_at and not is_changed and not r.not_applicable %}
+    <label class="check"><input type="checkbox" name="risk_ids" value="{{ r.id }}"> Use this rationale and these ratings in the draft</label>
+    {% endif %}
+    <div class="grid two">
+      <div><h3>Current reasoning</h3><p class="preserve">{{ r.rationale or 'Not assessed' }}</p></div>
+      <div><h3>Suggested reasoning</h3><p class="preserve">{{ item.rationale }}</p></div>
+    </div>
+    <div class="table-wrap"><table><thead><tr><th>Rating</th><th>Current</th><th>Suggested</th></tr></thead><tbody>
+      {% for field in score_fields %}<tr><td>{{ field|replace('_',' ')|capitalize }}</td><td>{{ r|attr(field) if r|attr(field) is not none else 'Unknown' }}</td><td>{{ item[field] if item[field] is not none else 'Unknown' }}</td></tr>{% endfor %}
+    </tbody></table></div>
+    <h3>Proposed controls</h3><p class="preserve">{{ item.suggested_controls or 'None suggested' }}</p>
+    <h3>Evidence gaps</h3><p class="preserve">{{ item.evidence_gaps or 'None identified by Claude; human review is still required.' }}</p>
+    <h3>Questions for review</h3><p class="preserve">{{ item.questions or 'None suggested' }}</p>
+    {% if item.evidence_ids %}<p class="muted">Referenced evidence IDs: {{ item.evidence_ids|join(', ') }}</p>{% endif %}
+    {% if e.accepted_at and r.id in e.accepted_risk_ids %}{{ badge('Applied to draft') }}{% endif %}
+  </section>
+  {% endfor %}
+  {% if e.mode=='draft' and is_owner and not e.accepted_at and not is_changed %}
+  <section class="panel stack">
+    <label class="check"><input name="confirmed" type="checkbox" value="yes" required> I reviewed the selected reasoning and ratings against the available evidence.</label>
+    <p>Acceptance saves the selected rationale and ratings. Continue in the assessment to record implemented controls, evidence and treatment actions.</p>
+    <button>Apply selected suggestions to draft</button>
+  </section>
+  {% elif e.mode=='review' %}
+  <div class="notice">Use these questions in your human review. <a href="{{ url_for('web.assessment',assessment_id=a.id,_anchor='decision') }}">Return to review and decision →</a></div>
+  {% endif %}
+</form>
+<details class="panel"><summary>Original prompt and context</summary><pre class="preserve prompt-text">{{ e.prompt }}</pre></details>
+{% endif %}
+{% endblock %}

@@ -52,6 +52,7 @@ The release contains a complete first adoption cycle:
 - Dated evidence notes/links, independent verification and reusable vendor evidence. Evidence is not verified merely because an author attached a link.
 - Draft, review, approve/conditional/reject decisions. Suspected prohibited use, missing legal scope, missing/expired evidence and critical residual risk prevent approval.
 - Immutable decisions, context-change detection, review/evidence/action attention signals, separately verified completion of conditional actions, audit history and exports.
+- Claude.ai/Claude Enterprise web handoff for scoped draft assistance and independent-review critique, with strict response validation, provenance and human acceptance.
 - Local setup without default credentials, role checks, session revocation, CSRF, input validation, concurrent-edit checks, migrations, production configuration and automated checks.
 
 The rating bands are transparent local policy: likelihood × impact, Low 1–5, Moderate 6–11, High 12–19, Critical 20–25. They prioritize discussion; they are neither a measured probability nor an EU legal classification. Custom scoring policy and calibration across teams remain future work.
@@ -66,6 +67,7 @@ The backend tests exercise the complete decision flow, data persistence across a
 
 | Priority | Increment | Acceptance criteria |
 | --- | --- | --- |
+| P1 | Claude Enterprise connector or API integration | Web handoff is available now. Add an organization-approved authenticated connector or separately configured API access, with per-user context access, bounded suggestions, explicit human acceptance and a live Enterprise acceptance test. See [Claude assistance](CLAUDE_ASSISTANCE.md). |
 | P1 | Pilot with actual procurement, security, privacy/legal and business owners | Three real use cases completed: internal knowledge assistant, customer agent and recruitment AI. Reviewers can identify the evidence behind each decision. Capture task completion time, abandoned fields and repeated clarification requests. |
 | P1 | Structured legal obligation register | Separate obligation records with article/annex, role, jurisdiction, effective date, applicability rationale, owner and evidence. Expert-reviewed fixtures for Article 5, Article 6 exceptions, Article 25 role changes, Article 26 duties, restricted Article 27 FRIA scope and Article 50 distinctions. Legal unknowns never become “not applicable” automatically. |
 | P1 | Enterprise access and retention | Organization SSO/MFA, account lifecycle integration, explicit access groups if records need restricted visibility, retention/deletion/export controls and audit export. Cross-group access-denial tests must pass before use with segregated teams. |

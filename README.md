@@ -33,6 +33,12 @@ To explore three clearly labeled fictional examples after creating your account:
 
 Changed system/vendor context requires a new assessment. Closing an action does not silently lower a risk rating or broaden an authorization. Decided assessments cannot be edited; retain them as the historical record.
 
+## Use Claude to help draft and review
+
+Open **Claude assistance** inside an assessment. Prepare a focused prompt for Claude.ai or your Claude Enterprise workspace, bring its JSON response back, and compare its suggestions with the current assessment. Owners explicitly accept selected draft reasoning and ratings; reviewers can request a critique without changing the assessment or decision.
+
+This is a web handoff that works with your existing Claude access. Sharing happens when you copy or upload the prepared context into Claude. AIrisk validates imported suggestions, detects changed context, and records provenance. See [the Claude workflow guide](docs/CLAUDE_ASSISTANCE.md) for the steps and the future Enterprise connector/API integration path.
+
 ## Frameworks and method
 
 The versioned catalog contains original risk scenarios with links to the source guidance. It separates three different functions:

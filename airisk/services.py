@@ -130,6 +130,14 @@ def blockers(assessment, conditional=False):
 def assessment_payload(a):
     events = db.session.scalars(select(AuditEvent).filter_by(entity='assessment', entity_id=a.id).order_by(AuditEvent.id)).all()
     return {'id': a.id, 'catalog_version': a.catalog_version, 'created_at': a.created_at.isoformat(),
+            'claude_assistance': [{'request_id': e.id, 'mode': e.mode, 'workspace': e.workspace,
+                                  'model_reported_by_user': e.model_label, 'prepared_by': e.author.name,
+                                  'context_fingerprint': e.context_digest, 'created_at': e.created_at.isoformat(),
+                                  'imported_at': e.imported_at.isoformat() if e.imported_at else None,
+                                  'accepted_at': e.accepted_at.isoformat() if e.accepted_at else None,
+                                  'accepted_risk_ids': e.accepted_risk_ids or [],
+                                  'summary': e.response['summary'] if e.response else None}
+                                 for e in sorted(a.claude_exchanges, key=lambda e:e.id)],
             'history': [{'action': e.action, 'actor': e.actor.name if e.actor else None,
                          'created_at': e.created_at.isoformat(), 'details': e.details} for e in events],
             'system_context': a.snapshot, 'state': a.state, 'context_changed': stale(a),
