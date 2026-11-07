@@ -85,6 +85,15 @@ def reviewer():
         abort(403, description='A reviewer or administrator must perform this action.')
 
 
+def independent(a):
+    if g.user.id in (a.author_id, a.system.owner_id):
+        return False
+    return not db.session.scalar(select(AuditEvent.id).where(
+        AuditEvent.entity == 'assessment', AuditEvent.entity_id == a.id,
+        AuditEvent.actor_id == g.user.id,
+        AuditEvent.action.in_(('created', 'risk updated', 'custom risk added'))).limit(1))
+
+
 def edit_assessment(a):
     if a.state != 'draft':
         abort(409, description='This assessment is locked. Return it to draft before making changes.')
@@ -236,7 +245,7 @@ def assessment(assessment_id):
     events = db.session.scalars(select(AuditEvent).filter_by(entity='assessment', entity_id=a.id).order_by(AuditEvent.id.desc())).all()
     return render_template('assessment.html', a=a, evidence=candidates,
         users=db.session.scalars(select(User).where(User.active.is_(True))).all(),
-        blockers=blockers(a, True), events=events,
+        blockers=blockers(a, True), events=events, independent=independent(a),
         can_edit=a.state == 'draft' and not stale(a) and (g.user.id in (a.author_id, a.system.owner_id) or g.user.role == 'admin'))
 
 
@@ -270,6 +279,7 @@ def save_risk(risk_id):
             abort(403, description='Evidence must belong to this assessment or its vendor.')
         selected.append(e)
     r.evidence = list({e.id: e for e in selected}.values())
+    r.revision += 1  # Also version changes to evidence links, which live in a separate table.
     a.revision += 1  # Serialize edits against review/decision transitions as well as this risk.
     audit(g.user.id, 'assessment', a.id, 'risk updated', {'risk': r.definition['key']})
     db.session.commit()
@@ -350,7 +360,7 @@ def reopen(assessment_id):
     reason = text('reason', 2000, True)
     a.state, a.decision, a.reviewer_id, a.decided_at, a.review_due = 'draft', '', None, None, None
     a.legal_review, a.legal_reviewer_id = '', None
-    audit(g.user.id, 'assessment', a.id, 'returned to draft; prior decision revoked', {'reason': reason})
+    audit(g.user.id, 'assessment', a.id, 'returned to draft; applicability review cleared', {'reason': reason})
     db.session.commit()
     return redirect(url_for('web.assessment', assessment_id=a.id))
 
@@ -360,7 +370,7 @@ def reopen(assessment_id):
 def legal(assessment_id):
     a = db.get_or_404(Assessment, assessment_id)
     reviewer()
-    if a.state != 'in_review' or g.user.id == a.author_id or stale(a):
+    if a.state != 'in_review' or not independent(a) or stale(a):
         abort(409, description='An independent reviewer can record applicability on a current assessment in review.')
     a.legal_review, a.legal_reviewer_id = text('legal_review', 6000, True), g.user.id
     audit(g.user.id, 'assessment', a.id, 'legal applicability reviewed', {'rationale': a.legal_review})
@@ -373,8 +383,8 @@ def legal(assessment_id):
 def decide(assessment_id):
     a = db.get_or_404(Assessment, assessment_id)
     reviewer()
-    if g.user.id == a.author_id:
-        abort(403, description='The assessment author cannot approve their own assessment.')
+    if not independent(a):
+        abort(403, description='The system owner, assessment author or a contributor to its risk answers cannot make the review decision.')
     if a.state != 'in_review':
         abort(409, description='Only an assessment in review can receive a decision.')
     state = text('state', 20, True)

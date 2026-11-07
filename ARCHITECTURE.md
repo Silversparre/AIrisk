@@ -48,7 +48,7 @@ Risk ratings use a documented local likelihood × impact scale. Unknown inputs h
 
 ## Access and integrity
 
-All active members can read all records in this single workspace. The assessment author, system owner or administrator edits a current draft. Reviewers/administrators verify evidence and decide assessments, but cannot verify their own evidence or approve their own authored assessment. Administrators manage accounts; disabling an account or resetting its password revokes existing sessions through a server-side version check.
+All active members can read all records in this single workspace. The assessment author, system owner or administrator edits a current draft. Reviewers/administrators verify evidence and decide assessments, but cannot verify their own evidence or decide an assessment they authored, own, or contributed risk answers to. Administrators manage accounts; disabling an account or resetting its password revokes existing sessions through a server-side version check.
 
 Passwords use Werkzeug's scrypt hashing. Cookies contain the user identity, session version and framework session metadata, not assessment content. Every mutation requires CSRF protection. Production requires a sufficiently long externally supplied secret and uses Secure/HttpOnly/SameSite cookies. Request sizes are bounded, templates autoescape text, external evidence links require HTTPS and are never fetched by the server, and CSV exports neutralize formula prefixes.
 

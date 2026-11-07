@@ -66,7 +66,7 @@ export AIRISK_INSTANCE="$(mktemp -d)"
 npm run test:browser
 ```
 
-Browser screenshots and a generated PDF are written to ignored `test-results/`. GitHub Actions runs Python 3.11/3.12 workflow tests, migrations, the browser journey and a container startup check.
+Browser screenshots and a generated PDF are written to ignored `test-results/`. GitHub Actions runs one Python 3.12 validation job on pull requests: workflow tests, migrations, dependency audit, the browser journey and a container startup check. Superseded runs are cancelled; documentation-only changes and merges do not repeat the pipeline. Python 3.11 was also validated for the initial release.
 
 ## Hosted operation
 

@@ -335,6 +335,50 @@ class WorkflowTests(unittest.TestCase):
         with self.app.app_context():
             self.assertTrue(stale(db.session.get(Assessment, aid)))
 
+    def test_editing_only_evidence_links_invalidates_old_forms(self):
+        aid = self.assessment()
+        self.assertEqual(self.post('/evidence', dict(assessment_id=aid,title='Evidence',notes='Findings',
+            expires_on=str(date.today()+timedelta(days=90)))).status_code, 200)
+        with self.app.app_context():
+            rid = db.session.get(Assessment,aid).risks[0].id
+            eid = db.session.scalar(select(Evidence.id))
+        self.assertEqual(self.post(f'/risks/{rid}', dict(revision=1,evidence_ids=eid)).status_code, 200)
+        self.assertEqual(self.post(f'/risks/{rid}', dict(revision=1)).status_code, 409)
+        with self.app.app_context():
+            self.assertEqual([e.id for e in db.session.get(Risk,rid).evidence],[eid])
+
+    def test_administrator_who_edits_answers_cannot_then_approve(self):
+        aid = self.assessment()
+        eid, risks = self.fill_assessment(aid)
+        with self.app.app_context():
+            db.session.get(User,2).role='admin'
+            db.session.commit()
+            rid, rev = risks[0][0], db.session.get(Risk,risks[0][0]).revision
+        self.login('reviewer')
+        self.assertEqual(self.post(f'/risks/{rid}', dict(revision=rev,not_applicable='yes',rationale='Reviewer changed the risk answer.')).status_code, 200)
+        self.login('owner')
+        self.assertEqual(self.post(f'/assessments/{aid}/submit').status_code, 200)
+        self.login('reviewer')
+        self.assertEqual(self.post(f'/assessments/{aid}/legal', dict(legal_review='Own edited work.')).status_code, 409)
+        self.assertEqual(self.decision(aid).status_code, 403)
+
+    def test_return_reason_is_visible_to_author_and_preserved_in_export(self):
+        aid = self.assessment()
+        eid, _ = self.fill_assessment(aid)
+        self.review(aid, eid)
+        reason = 'Retest restricted document access; include <script> as a literal adversarial marker.'
+        self.assertEqual(self.post(f'/assessments/{aid}/reopen', {'reason':reason}).status_code, 200)
+        self.login('owner')
+        page = self.client.get(f'/assessments/{aid}').get_data(as_text=True)
+        self.assertIn('Changes requested by Reviewer',page)
+        self.assertIn('Retest restricted document access;',page)
+        self.assertIn('&lt;script&gt;',page)
+        self.assertNotIn('<script> as a literal',page)
+        payload = self.client.get(f'/assessments/{aid}/export.json').json
+        self.assertEqual(payload['state'],'draft')
+        self.assertEqual(payload['legal_review'],'')
+        self.assertEqual(payload['history'][-1]['details']['reason'],reason)
+
 
 if __name__ == '__main__':
     unittest.main()

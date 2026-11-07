@@ -1,5 +1,6 @@
 from copy import deepcopy
 from datetime import date
+from sqlalchemy import select
 from .models import db, Assessment, Risk, AuditEvent
 from .catalog import VERSION, REVIEW_BY, SOURCES, RISKS, applicable, triage
 
@@ -127,7 +128,10 @@ def blockers(assessment, conditional=False):
 
 
 def assessment_payload(a):
+    events = db.session.scalars(select(AuditEvent).filter_by(entity='assessment', entity_id=a.id).order_by(AuditEvent.id)).all()
     return {'id': a.id, 'catalog_version': a.catalog_version, 'created_at': a.created_at.isoformat(),
+            'history': [{'action': e.action, 'actor': e.actor.name if e.actor else None,
+                         'created_at': e.created_at.isoformat(), 'details': e.details} for e in events],
             'system_context': a.snapshot, 'state': a.state, 'context_changed': stale(a),
             'current_attention': attention(a),
             'legal_review': a.legal_review, 'decision': a.decision,
