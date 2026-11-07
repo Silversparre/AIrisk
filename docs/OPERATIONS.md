@@ -4,18 +4,38 @@ This release supports one organization per deployment and a modest number of int
 
 ## Local pilot
 
-Run `bash run-local.sh` with Python 3.11/3.12. The server binds to `127.0.0.1:5000`. Create the first administrator in the browser, then create a separate reviewer in Team. The browser setup route is available only in development, from a loopback address, before the first account exists. Do not expose development mode through a public reverse proxy.
+On Windows, run `.\run-windows.cmd` in Command Prompt or PowerShell using an approved Python 3.12 installation (3.11 is also supported). WSL, Docker, Bash, Node and administrator privileges are not needed to run the application. On Linux/macOS use `bash run-local.sh`. Both launchers bind Waitress to `127.0.0.1:5000` and open the browser. Use `--no-browser` to suppress this or `--port 5050` to choose another port. Keep the console open and stop with Ctrl+C.
 
-The launcher creates `.venv/`, installs `requirements.txt`, applies migrations and runs Gunicorn. Dependencies require internet access on first installation. Normal operation has no external API dependency. Follow source/evidence links in the browser when reviewing them.
+Create the first administrator in the browser, then create a separate reviewer in Team. The browser setup route is available only in development, from a loopback address, before the first account exists. Do not expose development mode through a public reverse proxy.
 
-Optional manual startup:
+Windows uses `.venv-windows/`; Linux/macOS use `.venv/`. The launcher installs `requirements.txt` on first use and when that file changes, checks the installed packages, and applies migrations before starting the server. Normal restarts do not contact a package index. First installation/updates need access to the organization's approved Python package source; pip honors its normal index, proxy and offline-wheel configuration. No PowerShell execution-policy bypass is used.
+
+The Windows launcher reuses its existing environment, otherwise tries `py -3.12`, `py -3.11` and `python`. For an approved Python installation outside PATH, set the path for the current terminal:
+
+```powershell
+$env:AIRISK_PYTHON = 'C:\Path To Approved Python\python.exe'
+.\run-windows.cmd
+```
+
+`--prepare-only` installs/checks dependencies and applies migrations without starting a server. Application data stays in `instance/airisk.db` and the signing key in `instance/secret.key`. An existing database and accounts work with either platform's launcher. Stop the previous server before switching; do not run Windows and Unix servers against the same SQLite file simultaneously. Back up before updating the application. Do not delete `instance/` when replacing a virtual environment.
+
+Optional manual native Windows startup, after preparing the environment:
+
+```powershell
+.\.venv-windows\Scripts\python.exe -m flask --app app db upgrade
+.\.venv-windows\Scripts\waitress-serve.exe --host 127.0.0.1 --port 5000 --threads 4 --max-request-body-size 131072 --call app:create_app
+```
+
+For Linux/macOS:
 
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 .venv/bin/python -m flask --app app db upgrade
-.venv/bin/gunicorn --bind 127.0.0.1:5000 --workers 1 --threads 4 'app:create_app()'
+.venv/bin/waitress-serve --host 127.0.0.1 --port 5000 --threads 4 --max-request-body-size 131072 --call app:create_app
 ```
+
+The local launcher rejects `APP_ENV=production` because production cookies require HTTPS. A hosted Windows deployment can use the same native environment with the manual commands above, `APP_ENV=production`, a stable protected `SECRET_KEY`, and an internal HTTPS reverse proxy. Create the first admin using `python -m flask --app app create-user --role admin`. Have the organization's service manager run Waitress under a dedicated identity with access to the database and secret; the launcher does not install a Windows service or configure IIS. The Linux container below is optional and is not a Windows prerequisite.
 
 ## Production container
 
@@ -48,6 +68,12 @@ The health endpoint `/health` returns 200 when the schema is accessible and 503 
 Admin accounts can create and disable members/reviewers. The creator shares an initial password through an approved internal channel; the recipient changes it in Account. There is no self-registration or email delivery. Passwords must be at least 12 characters. There is no SSO/MFA integration in this release.
 
 A server administrator can reset a password interactively:
+
+```powershell
+.\.venv-windows\Scripts\python.exe -m flask --app app reset-password --email person@example.com
+```
+
+Linux/macOS or container equivalent:
 
 ```bash
 .venv/bin/python -m flask --app app reset-password --email person@example.com
@@ -82,6 +108,16 @@ print(backup)
 PY
 ```
 
+On Windows, an offline backup is also straightforward: stop AIrisk with Ctrl+C and confirm its server process has exited, then copy the closed database. Keep the backup and signing key in storage restricted to the appropriate Windows accounts:
+
+```powershell
+New-Item -ItemType Directory -Force backups | Out-Null
+$backup = Join-Path backups ((Get-Date -Format 'yyyyMMddTHHmmssfff') + '.db')
+Copy-Item instance\airisk.db $backup -ErrorAction Stop
+```
+
+Only use this file-copy procedure while the application is stopped. For a live database, use the SQLite online backup API shown above (the Python code also runs on Windows).
+
 For containers, run the same SQLite backup procedure inside the container against `/app/instance/airisk.db`, then copy the completed backup to protected off-host storage. Copying a live database file directly is not the supported backup procedure.
 
 To restore: stop the application, preserve the current database separately, restore a verified backup to the configured database path, make it writable by the service account, apply migrations, and start the server. Verify `/health`, sign in, and check a known assessment and its evidence. The automated startup test upgrades a populated schema, creates a SQLite backup, restores it into a separate application instance, and checks integrity and retained data. Operators still need to exercise their actual volume and off-host recovery process.
@@ -97,3 +133,22 @@ Review source changes in `airisk/catalog.py` before its declared review date, up
 ## Release checks
 
 Run the workflow/startup tests, migration check, dependency audit, Chromium journey and container health test before merging. CI produces browser screenshots and a PDF report artifact. The browser fixture creates accounts and fictional vendor data, so run it only against a fresh disposable database. The test suite does not certify third-party AI behavior or replace actual security testing of a deployed environment.
+
+### Native Windows browser validation
+
+Use an approved native Node installation for development tests only. In one PowerShell window, start a disposable instance:
+
+```powershell
+$env:AIRISK_INSTANCE = Join-Path $env:TEMP ('airisk-browser-' + [guid]::NewGuid())
+.\run-windows.cmd --port 5057 --no-browser
+```
+
+In a second PowerShell window in the repository:
+
+```powershell
+npm ci
+npx playwright install chromium
+node tests/browser.cjs
+```
+
+Stop the disposable server after the test. Use a fresh `AIRISK_INSTANCE` for each run. For a different port, set `AIRISK_TEST_URL` in the test terminal. `AIRISK_BROWSER` optionally selects an already installed Chromium/Edge executable. The browser run covers account setup, author/reviewer workflows, Claude handoffs with synthetic responses, exports and mobile layout on the native server.

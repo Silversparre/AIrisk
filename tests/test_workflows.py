@@ -108,6 +108,8 @@ class WorkflowTests(unittest.TestCase):
         restarted = create_app(self.config)
         with restarted.app_context():
             self.assertEqual(db.session.get(Assessment, aid).state, 'approved')
+            db.session.remove()
+            db.engine.dispose()
         cookie = self.client.get_cookie('session')
         contents = self.app.session_interface.get_signing_serializer(self.app).loads(cookie.value)
         self.assertNotIn('assessment_data', contents)

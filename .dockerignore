@@ -1,5 +1,6 @@
 .git
 .venv
+.venv-windows
 .env
 instance
 __pycache__

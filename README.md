@@ -6,21 +6,31 @@ The application is a self-hosted workspace for **one organization**. All active 
 
 ## Start locally
 
-Use Python 3.11 or 3.12 on Linux, macOS or Windows through WSL. From the repository directory:
+Use your organization's approved Python 3.12 installation (Python 3.11 also works). **Windows runs natively; WSL and Docker are not required.** From the repository directory in Command Prompt or PowerShell:
+
+```powershell
+.\run-windows.cmd
+```
+
+You can also double-click `run-windows.cmd`. It finds the Python launcher or `python` on PATH; set `AIRISK_PYTHON` to the full path of an approved `python.exe` if needed. It creates a separate `.venv-windows/` environment, so an existing Unix environment is preserved. No administrator access or PowerShell execution-policy change is required by the launcher.
+
+On Linux or macOS:
 
 ```bash
 bash run-local.sh
 ```
 
-Open [http://127.0.0.1:5000](http://127.0.0.1:5000). The first visit lets you create an administrator account. Then add a separate reviewer from **Team**. There are no default credentials. The launcher installs the Python dependencies, applies database migrations and starts Gunicorn bound to localhost.
+The launcher opens [http://127.0.0.1:5000](http://127.0.0.1:5000) after starting Waitress bound to localhost. The first visit lets you create an administrator account. Then add a separate reviewer from **Team**. There are no default credentials. Dependencies are installed on first use and when `requirements.txt` changes; subsequent starts work without downloading packages. Use `--no-browser`, `--port 5050`, or `--prepare-only` when needed.
 
 Data is stored in `instance/airisk.db` and survives restarts. The local signing key is generated once in `instance/secret.key`. Both are ignored by Git. Stop the server with Ctrl+C.
 
 To explore three clearly labeled fictional examples after creating your account:
 
-```bash
-.venv/bin/python -m flask --app app seed-demo --owner your-email@example.com
+```powershell
+.\.venv-windows\Scripts\python.exe -m flask --app app seed-demo --owner your-email@example.com
 ```
+
+On Linux/macOS, use `.venv/bin/python` instead. Existing accounts, assessments and seeded examples are reused from the same `instance/` directory when switching launchers; stop the old server before switching. Do not reseed a database that already contains demo records.
 
 ## Complete a real assessment
 
@@ -55,10 +65,12 @@ The [review and roadmap](docs/REVIEW_AND_ROADMAP.md) explains the original probl
 
 ## Validation
 
-```bash
-.venv/bin/python -m unittest discover -s tests -v
-.venv/bin/python -m flask --app app db check
+```powershell
+.\.venv-windows\Scripts\python.exe -m unittest discover -s tests -v
+.\.venv-windows\Scripts\python.exe -m flask --app app db check
 ```
+
+Use `.venv/bin/python` for these commands on Linux/macOS. The tests include a real Waitress process, restart/persistence, paths containing spaces and occupied-port handling. The same suite runs on native Windows.
 
 A real Chromium journey also exercises account setup, vendor registration, a complete assessment, independent review, exports, hiring/agent routing and mobile layout. It uses synthetic business data and a real HTTP server; it does not evaluate an actual supplier's AI. Run it only against a **fresh disposable development database**:
 
@@ -72,7 +84,7 @@ export AIRISK_INSTANCE="$(mktemp -d)"
 npm run test:browser
 ```
 
-Browser screenshots and a generated PDF are written to ignored `test-results/`. GitHub Actions runs one Python 3.12 validation job on pull requests: workflow tests, migrations, dependency audit, the browser journey and a container startup check. Superseded runs are cancelled; documentation-only changes and merges do not repeat the pipeline. Python 3.11 was also validated for the initial release.
+For native Windows browser checks, see [operations](docs/OPERATIONS.md#native-windows-browser-validation). Browser screenshots and a generated PDF are written to ignored `test-results/`. GitHub Actions runs one Linux/Python 3.12 validation job on pull requests: workflow tests, migrations, dependency audit, the browser journey and a container startup check. Superseded runs are cancelled; documentation-only changes and merges do not repeat the pipeline. Native Windows validation runs locally to avoid adding a paid runner matrix. Python 3.11 was also validated for the initial release.
 
 ## Hosted operation
 
