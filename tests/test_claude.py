@@ -135,6 +135,35 @@ class ClaudeTests(unittest.TestCase):
             expires_on=str(date.today()+timedelta(days=30)))).status_code,200)
         self.assertEqual(self.receive(eid).status_code,409)
 
+    def test_residual_ratings_require_cited_evidence_actually_shared(self):
+        aid = self.assessment()
+        eid = self.prepare(aid, include=True)
+        payload = self.response_for(eid)
+        payload['risks'][0].update(residual_likelihood=2, residual_impact=3)
+        self.assertEqual(self.receive(eid, payload).status_code, 400)
+        with self.app.app_context():
+            self.assertIsNone(db.session.get(ClaudeExchange, eid).response)
+        self.assertEqual(self.receive(eid).status_code, 200)  # Unknown residuals remain valid.
+
+        self.assertEqual(self.post('/evidence', dict(assessment_id=aid, title='Evaluation',
+            notes='Synthetic evaluation findings and limitations.',
+            expires_on=str(date.today()+timedelta(days=30)))).status_code, 200)
+        eid = self.prepare(aid, include=True)
+        payload = self.response_for(eid)
+        payload['risks'][0].update(residual_likelihood=2, residual_impact=3)
+        self.assertEqual(self.receive(eid, payload).status_code, 400)  # Available but not cited.
+        with self.app.app_context():
+            evidence_id = db.session.scalar(select(Evidence.id).filter_by(assessment_id=aid))
+        payload['risks'][0]['evidence_ids'] = [evidence_id]
+        self.assertEqual(self.receive(eid, payload).status_code, 200)
+        self.assertEqual(self.post(f'/claude/{eid}/accept', dict(confirmed='yes',
+            risk_ids=payload['risks'][0]['risk_id'])).status_code, 200)
+        with self.app.app_context():
+            r = db.session.get(Risk, payload['risks'][0]['risk_id'])
+            self.assertEqual((r.residual_likelihood, r.residual_impact), (2, 3))
+            self.assertEqual(r.evidence, [])  # A citation does not attach or verify evidence.
+            self.assertIsNone(db.session.get(Evidence, evidence_id).verified_at)
+
     def test_review_advice_cannot_change_risks_or_make_a_decision(self):
         aid = self.assessment()
         self.fill_assessment(aid)

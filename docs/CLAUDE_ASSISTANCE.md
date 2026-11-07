@@ -13,7 +13,7 @@ The workspace selector records which Claude environment the user intends to use.
 5. Compare current and proposed reasoning, ratings, control recommendations, evidence gaps and questions. Explicitly select the suggestions to use and confirm that you reviewed them.
 6. Continue the assessment. Acceptance changes only the selected risk rationales and four ratings. Record implemented controls and evidence through the normal risk/evidence forms, then request independent review.
 
-Unknown ratings can remain `null`. When evidence was omitted, imported residual ratings must be `null`. A proposed control is not treated as an implemented control, and a model suggestion is not independent evidence. A risk marked not applicable needs human reconsideration in the assessment before a suggestion for it can be applied.
+Unknown ratings can remain `null`. Numeric residual ratings must cite evidence actually included in the request; omitted, empty or uncited evidence requires `null` residual ratings. A citation does not attach or verify evidence automatically. A proposed control is not treated as an implemented control, and a model suggestion is not independent evidence. A risk marked not applicable needs human reconsideration in the assessment before a suggestion for it can be applied.
 
 ## Assisting an independent reviewer
 
