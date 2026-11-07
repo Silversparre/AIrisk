@@ -1,4 +1,5 @@
 import os
+from contextlib import closing
 import sqlite3
 import tempfile
 import unittest
@@ -23,6 +24,9 @@ class StartupTests(unittest.TestCase):
                 self.assertTrue(app.config['SESSION_COOKIE_SECURE'])
                 self.assertEqual(app.test_client().get('/setup').status_code, 404)
                 self.assertEqual(app.test_client().get('/health').status_code, 503)
+                with app.app_context():
+                    db.session.remove()
+                    db.engine.dispose()
 
     def test_populated_database_upgrade_and_backup_restore(self):
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'AIRISK_INSTANCE':tmp}):
@@ -41,7 +45,7 @@ class StartupTests(unittest.TestCase):
                 db.engine.dispose()
             original = Path(tmp)/'airisk.db'
             backup = Path(tmp)/'restored.db'
-            with sqlite3.connect(original) as source, sqlite3.connect(backup) as target:
+            with closing(sqlite3.connect(original)) as source, closing(sqlite3.connect(backup)) as target:
                 source.backup(target)
             restored = create_app({'SECRET_KEY':'test-key-'*8,'SQLALCHEMY_DATABASE_URI':'sqlite:///'+str(backup)})
             with restored.app_context():

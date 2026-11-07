@@ -54,6 +54,7 @@ The release contains a complete first adoption cycle:
 - Immutable decisions, context-change detection, review/evidence/action attention signals, separately verified completion of conditional actions, audit history and exports.
 - Claude.ai/Claude Enterprise web handoff for scoped draft assistance and independent-review critique, with strict response validation, provenance and human acceptance.
 - Local setup without default credentials, role checks, session revocation, CSRF, input validation, concurrent-edit checks, migrations, production configuration and automated checks.
+- Native Windows startup with an approved Python installation and Waitress, a reusable Windows environment, preserved local data and no WSL or Docker requirement. Linux/macOS use the same local server; the optional Linux container remains supported.
 
 The rating bands are transparent local policy: likelihood × impact, Low 1–5, Moderate 6–11, High 12–19, Critical 20–25. They prioritize discussion; they are neither a measured probability nor an EU legal classification. Custom scoring policy and calibration across teams remain future work.
 
@@ -62,6 +63,8 @@ The rating bands are transparent local policy: likelihood × impact, Low 1–5, 
 The executable acceptance journey uses separate author and reviewer accounts in Chromium against Gunicorn and a fresh SQLite database. It registers a fictional supplier, assesses an internal policy assistant, adds a custom risk, verifies evidence, makes a decision and exports JSON/CSV/PDF. It also checks predictive hiring routing, agentic scenarios and desktop/mobile layouts. This is realistic application workflow testing with synthetic data, not a test of any real supplier's model or a substitute for user interviews.
 
 The backend tests exercise the complete decision flow, data persistence across application recreation, populated-schema migration and backup restoration, permissions, CSRF, stale edits, invalid scores, self-approval prevention, evidence expiry, vendor changes, action verification, custom risks, password/session revocation, production configuration, unsafe URLs and CSV formula handling. Dependency audit findings in Flask and Werkzeug were addressed before release. CI additionally validates the container in an environment with Docker available.
+
+Native Windows checks exercise the same backend suite and browser journeys with Windows Python, Node and Edge. Local-server checks cover restart/persistence, paths containing spaces and exclusive port binding. Windows-specific test cleanup closes database handles and terminates the test server's full process tree. These checks run locally; the CI workflow retains one Linux job to limit Actions usage.
 
 ## Next increments, in order
 
