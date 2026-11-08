@@ -110,7 +110,7 @@ def main():
     app = out / 'AIrisk'
     shutil.copytree(ROOT / 'dist' / 'AIrisk', app)
     inventory(app)
-    for name in ('SECURITY_REVIEW.md', 'WINDOWS_IT_REVIEW.md'):
+    for name in ('SECURITY_REVIEW.md', 'WINDOWS_IT_REVIEW.md', 'INTEGRATIONS.md', 'HALOITSM.md'):
         shutil.copyfile(ROOT / 'docs' / name, out / name)
     shutil.copyfile(ROOT / 'packaging/windows/requirements.lock', out / 'requirements.lock')
     shutil.copyfile(ROOT / 'packaging/windows/verify.py', out / 'verify.py')

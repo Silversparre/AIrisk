@@ -65,9 +65,35 @@ def action_resolved(risk):
     return risk.action_done or any(u.verified_at for u in risk.action_updates)
 
 
+def action_context(risk):
+    return {'action': risk.action, 'owner_id': risk.owner_id,
+            'due_date': risk.due_date.isoformat() if risk.due_date else None}
+
+
+def halo_action_changed(risk):
+    return bool(risk.halo_ticket and risk.halo_ticket.action_context != action_context(risk))
+
+
+def halo_payload(risk):
+    link = risk.halo_ticket
+    if not link:
+        return None
+    return {'ticket_id': link.ticket_id, 'url': link.ticket_url, 'state': link.state,
+            'progress': link.progress, 'reopened': link.reopened,
+            'action_changed': halo_action_changed(risk), 'last_error': link.last_error,
+            'last_synced_at': link.last_synced_at.isoformat() if link.last_synced_at else None}
+
+
 def attention(assessment):
     """Current monitoring signals, separate from the historical decision."""
     signals = []
+    from .enterprise_workflow import source_changed
+    if source_changed(assessment.system.coupa_link):
+        signals.append('Coupa supplier or product changed')
+    if any(r.halo_ticket and r.halo_ticket.reopened for r in assessment.risks):
+        signals.append('Halo remediation reopened')
+    if any(halo_action_changed(r) for r in assessment.risks):
+        signals.append('Halo action details changed')
     if stale(assessment):
         signals.append('Context changed')
     if assessment.review_due and assessment.review_due <= date.today():
@@ -128,8 +154,10 @@ def blockers(assessment, conditional=False):
 
 
 def assessment_payload(a):
+    from .enterprise_workflow import link_payload
     events = db.session.scalars(select(AuditEvent).filter_by(entity='assessment', entity_id=a.id).order_by(AuditEvent.id)).all()
     return {'id': a.id, 'catalog_version': a.catalog_version, 'created_at': a.created_at.isoformat(),
+            'integrations': {'onetrust': link_payload(a.onetrust_link), 'coupa': link_payload(a.system.coupa_link)},
             'claude_assistance': [{'request_id': e.id, 'mode': e.mode, 'workspace': e.workspace,
                                   'model_reported_by_user': e.model_label, 'prepared_by': e.author.name,
                                   'context_fingerprint': e.context_digest, 'created_at': e.created_at.isoformat(),
@@ -155,6 +183,7 @@ def assessment_payload(a):
                       'controls': r.controls, 'action': r.action, 'owner': r.owner.name if r.owner else None,
                       'due_date': str(r.due_date) if r.due_date else None, 'action_done': r.action_done,
                       'action_resolved_now': action_resolved(r),
+                      'halo_ticket': halo_payload(r),
                       'follow_up': [{'notes': u.notes, 'url': u.url, 'author': u.author.name,
                                     'created_at': u.created_at.isoformat(),
                                     'verified_by': u.verifier.name if u.verifier else None,

@@ -68,6 +68,8 @@ Native Windows checks exercise the same backend suite and browser journeys with 
 
 ## Next increments, in order
 
+The HaloITSM increment adds explicit remediation ticket creation, public progress polling, duplicate/timeout recovery and a schedulable native/source command. Original decisions and independent completion verification remain preserved. See [configuration and tenant acceptance testing](HALOITSM.md). A real Halo tenant has not yet been configured; OneTrust and Coupa connectors remain future work.
+
 The 8 November security/corporate packaging pass adds revocable sessions, stricter request/setup boundaries, atomic login throttling and local instance locking, plus a native executable and unsigned MSIX for IT review. See [security findings and validation](SECURITY_REVIEW.md) and [Windows signing/deployment requirements](WINDOWS_IT_REVIEW.md). Corporate signing and fleet policy qualification require IT's actual identity/policy; the package does not claim approval merely because it runs locally.
 
 | Priority | Increment | Acceptance criteria |
@@ -83,3 +85,5 @@ The 8 November security/corporate packaging pass adds revocable sessions, strict
 | P3 | Analytics and interoperability | Measure evidence freshness, unresolved high-impact use, overdue actions and decision lead time; export a stable schema and integrate with an organization's existing register. Avoid a single “compliance score.” |
 
 Do not add multi-tenant SaaS, an AI-generated auto-approval assistant or broad “all risks” modules before the core adoption workflow succeeds with actual organizations. The strongest next feedback is whether a reviewer can make and later defend a concrete decision using the recorded evidence.
+
+Version 1.2 adds configured HaloITSM remediation, OneTrust assessment handoff and Coupa requisition-line intake/publication. Automated simulations cover authenticated API payloads, duplicate protection, ambiguous-write recovery, human-edit conflicts and browser flows. Live tenant permissions, templates, field mappings and supported requisition states require customer acceptance using [the integration guide](INTEGRATIONS.md).

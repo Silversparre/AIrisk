@@ -66,6 +66,10 @@ Persist the same secret across restarts. Changing it invalidates all sessions. `
 
 The health endpoint `/health` returns 200 when the schema is accessible and 503 otherwise. It exposes no assessment information. Gunicorn logs are written to stdout/stderr. Set your ingress request limits and authentication monitoring for your environment. Atomic login budgets allow 10 attempts/account, 50/source and 200/workspace per 15 minutes; source/workspace budgets count successful logins too. A reverse proxy shares one source bucket because forwarded addresses are untrusted. Review these limits before a larger rollout; they are not a comprehensive network abuse-control service.
 
+## HaloITSM integration
+
+The optional connector creates remediation tickets on request and polls progress using `flask --app app halo-sync`. Configure the connection and schedule polling according to [HaloITSM setup and operation](HALOITSM.md). It needs outbound HTTPS to the configured API and OAuth endpoints. No inbound webhook or scheduler is installed automatically. Credentials belong in host configuration; the sync process must use the same database and instance as the application.
+
 ## Accounts
 
 Admin accounts can create and disable members/reviewers. The creator shares an initial password through an approved internal channel; the recipient changes it in Account. There is no self-registration or email delivery. Passwords must be at least 12 characters. There is no SSO/MFA integration in this release.
@@ -161,3 +165,7 @@ node tests/browser.cjs
 Stop the disposable server after the test. Use a fresh `AIRISK_INSTANCE` for each run. For a different port, set `AIRISK_TEST_URL` in the test terminal. `AIRISK_BROWSER` optionally selects an already installed Chromium/Edge executable. The browser run covers account setup, author/reviewer workflows, Claude handoffs with synthetic responses, exports and mobile layout on the native server.
 
 For the packaged executable, `python tests/package_windows.py --exe PATH_TO_AIrisk.exe --node PATH_TO_node.exe` starts a disposable instance itself, removes Python from the app's PATH, runs the browser journey, checks hostile Host/setup access, duplicate startup, restart persistence, administrator maintenance and live backup. Set `AIRISK_BROWSER` to an installed Edge/Chromium executable if needed. Package hashes, signing and the IT acceptance boundaries are described in [Windows IT review](WINDOWS_IT_REVIEW.md).
+
+## OneTrust and Coupa integrations
+
+[Enterprise integration setup](INTEGRATIONS.md) covers Coupa requisition-line intake, OneTrust assessment launch/link, explicit summary publication, read-only polling and recovery. The combined `integrations-sync --limit 50` command includes HaloITSM and can run alongside the desktop server after migrations have completed. Use the same account, credentials and data directory. No scheduled task is installed automatically.

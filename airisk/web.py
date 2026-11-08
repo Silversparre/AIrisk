@@ -188,6 +188,15 @@ def reviews():
 @signed_in
 def system_form(system_id=None):
     system = db.get_or_404(AISystem, system_id) if system_id else None
+    from .models import ExternalLink
+    from .enterprise_workflow import can_manage as manage_intake
+    intake_id = number('coupa_intake') if request.method == 'POST' else request.args.get('coupa_intake', type=int)
+    intake = db.get_or_404(ExternalLink, intake_id) if intake_id else None
+    if intake:
+        if system_id or intake.provider != 'coupa' or not manage_intake(intake, g.user):
+            abort(403)
+        if intake.system_id:
+            return redirect(url_for('web.system_detail', system_id=intake.system_id))
     if system and g.user.id != system.owner_id and g.user.role != 'admin':
         abort(403)
     if request.method == 'POST':
@@ -198,6 +207,8 @@ def system_form(system_id=None):
                       uses_rag=request.form.get('uses_rag') == 'yes', context_notes=text('context_notes', 4000))
         if fields['vendor_id'] and not db.session.get(Vendor, fields['vendor_id']):
             abort(400, description='Choose an existing vendor.')
+        if intake and fields['vendor_id'] != intake.vendor_id:
+            abort(400, description='Keep the imported supplier/product for this Coupa line.')
         if system:
             for key, value in fields.items():
                 setattr(system, key, value)
@@ -206,9 +217,12 @@ def system_form(system_id=None):
             db.session.add(system)
         db.session.flush()
         audit(g.user.id, 'system', system.id, 'updated' if system_id else 'created')
+        if intake:
+            intake.system_id = system.id
+            audit(g.user.id, 'system', system.id, 'coupa intake linked', {'link_id': intake.id})
         db.session.commit()
         return redirect(url_for('web.system_detail', system_id=system.id))
-    return render_template('system_form.html', system=system,
+    return render_template('system_form.html', system=system, coupa_intake=intake,
         users=db.session.scalars(select(User).where(User.active.is_(True))).all(),
         vendors=db.session.scalars(select(Vendor).order_by(Vendor.name)).all())
 

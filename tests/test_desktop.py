@@ -9,10 +9,23 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from desktop import backup, data_directory
+from desktop import backup, data_directory, main
 
 
 class DesktopTests(unittest.TestCase):
+    def test_halo_sync_shares_running_instance_without_migrations(self):
+        from airisk.runtime import instance_lock
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {'APP_ENV': 'development'}):
+            os.environ.pop('DATABASE_URL', None)
+            folder = Path(temp)
+            with closing(sqlite3.connect(folder / 'airisk.db')):
+                pass
+            with instance_lock(folder), patch('airisk.runtime.migrate') as migrate, patch(
+                    'airisk.halo_web.sync_due', return_value={'synced': 2, 'skipped': 0, 'failed': 0}) as sync:
+                self.assertEqual(main(['--instance', str(folder), 'halo-sync', '--limit', '3']), 0)
+                sync.assert_called_once_with(3)
+                migrate.assert_not_called()
+
     def test_backup_preserves_database_and_refuses_overwrite(self):
         with tempfile.TemporaryDirectory() as temp:
             folder = Path(temp)

@@ -8,7 +8,7 @@ import sys
 
 from run_local import port_number
 
-VERSION = '1.1.0'
+VERSION = '1.2.0'
 
 
 def data_directory(value=None):
@@ -52,7 +52,7 @@ def main(argv=None):
     parser.add_argument('--port', type=port_number, default=5000)
     parser.add_argument('--no-browser', action='store_true')
     parser.add_argument('--prepare-only', action='store_true', help='Apply migrations and exit.')
-    parser.add_argument('command', nargs='?', default='serve', choices=('serve', 'backup', 'admin'))
+    parser.add_argument('command', nargs='?', default='serve', choices=('serve', 'backup', 'admin', 'halo-sync', 'integrations-sync'))
     parser.add_argument('arguments', nargs=argparse.REMAINDER)
     args = parser.parse_args(argv)
     try:
@@ -68,6 +68,19 @@ def main(argv=None):
             parser.error('Unexpected arguments after serve.')
         from airisk.runtime import instance_lock, local_app, migrate, serve_application
         from airisk.models import db
+        if args.command in ('halo-sync', 'integrations-sync'):
+            # Polling can share the running app's DB. It must never run migrations
+            # or acquire the exclusive server-startup lock; ticket leases serialize it.
+            if not (instance / 'airisk.db').is_file():
+                raise RuntimeError('Start AIrisk once before scheduling integration synchronization.')
+            app = local_app(instance)
+            with app.app_context():
+                try:
+                    app.cli.main(args=[args.command, *args.arguments], prog_name='AIrisk', standalone_mode=False)
+                finally:
+                    db.session.remove()
+                    db.engine.dispose()
+            return 0
         with instance_lock(instance):
             app = local_app(instance)
             migrate(app)

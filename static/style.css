@@ -8,3 +8,8 @@
 .history-row{flex-wrap:wrap}.history-note{flex-basis:100%;margin:0;padding:8px 12px;background:var(--bg);border-radius:5px}
 
 .prompt-text{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;line-height:1.6;tab-size:2}.prompt-actions{margin-top:16px}
+.halo-action{border-top:1px solid var(--line);margin-top:24px;padding-top:18px}.halo-action code{overflow-wrap:anywhere}.halo-action form{margin:12px 0}.halo-action button:disabled{opacity:.55;cursor:not-allowed}
+
+.integration-preview{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;background:var(--bg);padding:1rem;border-radius:8px}.break{overflow-wrap:anywhere}
+
+.grid.three{grid-template-columns:repeat(3,minmax(0,1fr))}@media(max-width:850px){.grid.three{grid-template-columns:1fr}}

@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block title %}HaloITSM integration{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">Integrations</p><h1>HaloITSM</h1><p class="lead">Track remediation in Halo and review completion evidence in AIrisk.</p></div></div>
+<section class="panel">
+  <h2>Connection setup</h2>
+  {% if problem %}<p class="notice warning">{{ problem }}</p>{% else %}
+    <p class="notice success">Configuration is present. The connection will be exercised when you create or sync a ticket.</p>
+    <dl><dt>API instance</dt><dd>{{ config.api_url }}</dd><dt>Ticket type</dt><dd>{{ config.defaults.tickettype_id }}</dd><dt>Team</dt><dd>{{ config.defaults.team or 'Halo default' }}</dd><dt>Completion statuses</dt><dd>{{ config.completed_status_ids|sort|join(', ') or 'Not mapped; progress will display without claiming completion.' }}</dd><dt>Assessment links</dt><dd>{{ config.public_url or 'Set AIRISK_PUBLIC_URL to include links back to this workspace.' }}</dd></dl>
+  {% endif %}
+  <p>Your IT administrator configures the connection on the AIrisk host, using the API and authorization URLs from Halo’s integration settings. Credentials stay on that host.</p>
+  <div class="table-wrap"><table><thead><tr><th>Setting</th><th>Value to configure</th></tr></thead><tbody>
+    <tr><td><code>HALO_API_URL</code></td><td>HTTPS API base URL, including <code>/api</code>.</td></tr>
+    <tr><td><code>HALO_TOKEN_URL</code></td><td>Full HTTPS OAuth token endpoint from Halo.</td></tr>
+    <tr><td><code>HALO_CLIENT_ID</code>, <code>HALO_CLIENT_SECRET</code></td><td>Dedicated client credentials with ticket read/write permissions.</td></tr>
+    <tr><td><code>HALO_TICKET_URL_TEMPLATE</code></td><td>Agent ticket URL with <code>{id}</code> in place of the ticket number.</td></tr>
+    <tr><td><code>HALO_TICKET_TYPE_ID</code></td><td>Your remediation ticket type ID.</td></tr>
+    <tr><td><code>HALO_TEAM</code>, <code>HALO_AGENT_ID</code></td><td>Optional default team and Halo assignee. The AIrisk owner is recorded in the ticket description.</td></tr>
+    <tr><td><code>HALO_CUSTOMER_ID</code>, <code>HALO_SITE_ID</code>, <code>HALO_USER_ID</code>, <code>HALO_PRIORITY_ID</code></td><td>Routing fields when required by your ticket type.</td></tr>
+    <tr><td><code>HALO_COMPLETED_STATUS_IDS</code></td><td>Comma-separated IDs that mean remediation was completed. Exclude cancelled or rejected statuses.</td></tr>
+    <tr><td><code>AIRISK_PUBLIC_URL</code></td><td>Optional HTTPS address where your team accesses AIrisk.</td></tr>
+  </tbody></table></div>
+  <p>Use “Create Halo ticket” on a saved action to send it. Schedule <code>flask --app app halo-sync</code> every five minutes to sync progress, or use “Sync Halo progress” on the action. The Windows package also provides <code>AIrisk.exe halo-sync</code>.</p>
+  <p>Ticket status, assignment, target date, and a recent public note are copied back. Private notes and attachments are not imported. Halo completion still needs the normal action evidence and independent verification.</p>
+</section>
+<section class="panel"><h2>Recently linked actions</h2>
+  <div class="table-wrap"><table><thead><tr><th>Assessment / action</th><th>Halo ticket</th><th>Progress</th><th>Last sync</th></tr></thead><tbody>
+    {% for link in links %}<tr>
+      <td><a href="{{ url_for('web.assessment',assessment_id=link.risk.assessment_id,_anchor='risk-'~link.risk_id) }}">#{{ link.risk.assessment_id }} / {{ link.risk.definition.title }}</a></td>
+      <td>{% if link.ticket_id %}<a href="{{ link.ticket_url }}" target="_blank" rel="noopener noreferrer">#{{ link.ticket_id }} ↗</a>{% else %}{{ link.state }}{% endif %}</td>
+      <td>{{ link.progress.status if link.progress else 'Not synced' }}{% if link.last_error %}<small>{{ link.last_error }}</small>{% endif %}</td>
+      <td>{{ link.last_synced_at.strftime('%d %b %Y %H:%M') ~ ' UTC' if link.last_synced_at else 'Never' }}</td>
+    </tr>{% else %}<tr><td colspan="4">No actions have been sent to HaloITSM.</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+{% endblock %}
