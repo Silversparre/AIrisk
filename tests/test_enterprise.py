@@ -230,6 +230,18 @@ class EnterpriseTests(unittest.TestCase):
             self.assertEqual(link.assessment.state, 'draft')
             self.assertTrue(all(not r.action_done for r in link.assessment.risks))
 
+    def test_local_vendor_replacement_cannot_clear_coupa_scope_warning(self):
+        lid = self.intake()
+        with self.app.app_context():
+            link = db.session.get(ExternalLink, lid)
+            replacement = Vendor(name='Other supplier', product='Another product')
+            db.session.add(replacement)
+            db.session.flush()
+            link.system.vendor_id = replacement.id
+            db.session.commit()
+            self.assertTrue(work.source_changed(link))
+            self.assertIn('Coupa supplier or product changed', attention(link.system.assessments[0]))
+
     def test_onetrust_summary_202_readback_and_duplicate_publish(self):
         lid = self.launch()
         self.assertIn(b'Summary publication confirmed', self.publish(lid).data)

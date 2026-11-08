@@ -39,8 +39,14 @@ def can_handoff(assessment, user):
 
 
 def source_changed(link):
-    return bool(link and link.provider == 'coupa' and link.progress and
-                any(link.source.get(k) != link.progress.get(k) for k in ('supplier_id', 'supplier', 'product')))
+    if not link or link.provider != 'coupa':
+        return False
+    remote_changed = link.progress and any(link.source.get(k) != link.progress.get(k)
+                                           for k in ('supplier_id', 'supplier', 'product'))
+    local_changed = (link.system and link.system.vendor_id != link.vendor_id) or (
+        link.vendor and (link.vendor.name != link.source.get('supplier', '')[:120]
+                         or link.vendor.product != link.source.get('product', '')[:120]))
+    return bool(remote_changed or local_changed)
 
 
 def link_payload(link):
