@@ -21,6 +21,9 @@ flowchart LR
 | `airisk/catalog.py` | Versioned original scenarios, scope routing and source references |
 | `airisk/services.py` | Context snapshots, completeness, approval checks, monitoring signals and export payloads |
 | `airisk/web.py` | Input validation, authentication, permissions and HTTP workflows |
+| `airisk/security.py` | Revocable sessions, atomic login budgets, setup nonce and request-origin/identifier boundaries |
+| `airisk/runtime.py`, `desktop.py` | Exclusive local runtime, migrations and packaged Windows entry point/backup |
+| `packaging/windows/` | Hash-pinned Windows build, MSIX manifest and distribution verification |
 | `airisk/claude.py` | Scoped Claude web/Enterprise prompts, response validation and explicit draft acceptance |
 | `airisk/cli.py` | Account administration and opt-in fictional examples |
 | `run-windows.cmd`, `run-local.sh`, `run_local.py` | Native local setup, dependency reuse, migrations and localhost Waitress server |
@@ -52,7 +55,7 @@ Risk ratings use a documented local likelihood × impact scale. Unknown inputs h
 
 All active members can read all records in this single workspace. The assessment author, system owner or administrator edits a current draft. Reviewers/administrators verify evidence and decide assessments, but cannot verify their own evidence or decide an assessment they authored, own, or contributed risk answers to. Administrators manage accounts; disabling an account or resetting its password revokes existing sessions through a server-side version check.
 
-Passwords use Werkzeug's scrypt hashing. Cookies contain the user identity, session version and framework session metadata, not assessment content. Every mutation requires CSRF protection. Production requires a sufficiently long externally supplied secret and uses Secure/HttpOnly/SameSite cookies. Request sizes are bounded, templates autoescape text, external evidence links require HTTPS and are never fetched by the server, and CSV exports neutralize formula prefixes.
+Passwords use Werkzeug's scrypt hashing. Cookies contain the user identity, session version, random authentication token and framework metadata, not assessment content. Each token must match a server-side hash with an eight-hour expiry. Logout revokes that record; account/password changes revoke all sessions. Atomic SQLite counters reserve login attempts before hashing. Every mutation requires CSRF protection, with additional Origin/Fetch Metadata checks. Trusted hostnames are explicit. Production requires a sufficiently long externally supplied secret and uses Secure/HttpOnly/SameSite cookies. Request sizes are bounded, templates autoescape text, external evidence links require HTTPS and are never fetched by the server, and CSV exports neutralize formula prefixes.
 
 Optimistic versions on risks and assessments reject conflicting writes. Draft risk edits also advance the assessment version to conflict with simultaneous lifecycle transitions. Application audit events record account, context, evidence and decision changes. This audit log is not tamper-proof against a database/server administrator and does not claim forensic-grade event sourcing.
 
@@ -62,4 +65,4 @@ The local launcher runs Waitress with four threads on native Windows, Linux or m
 
 Claude assistance uses a human-controlled web handoff with preserved requests/responses and context fingerprints. Imported advice is validated and selected draft reasoning/ratings require explicit acceptance; reviewer critiques cannot change decisions. There is no direct model API call, background worker, vendor scraping or automatic document ingestion. See [Claude assistance](docs/CLAUDE_ASSISTANCE.md). Evidence consists of dated notes and optional links to an organization's existing document store. The application cannot verify the truth of an uploaded claim; a named person must review it. Browser exports and backups can contain confidential information and need the organization's normal handling controls.
 
-See [operations](docs/OPERATIONS.md) for startup, backup and recovery, and [the roadmap](docs/REVIEW_AND_ROADMAP.md) for the next product increments.
+The packaged native Windows executable includes Python, stores user data outside the immutable program directory, and performs no dependency downloads. A local OS lock covers migration/startup and serving; a private setup nonce and unique database claim protect first-account creation. See [Windows IT review](docs/WINDOWS_IT_REVIEW.md) for signature coverage and policy dependencies, [security review](docs/SECURITY_REVIEW.md) for findings, [operations](docs/OPERATIONS.md) for startup/backup/recovery, and [the roadmap](docs/REVIEW_AND_ROADMAP.md) for the next product increments.

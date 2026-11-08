@@ -3,11 +3,9 @@ import argparse
 import hashlib
 import os
 from pathlib import Path
-import socket
 import subprocess
 import sys
 import venv
-import webbrowser
 
 ROOT = Path(__file__).resolve().parent
 
@@ -40,41 +38,18 @@ def prepare(root=ROOT):
                         '-r', str(requirements)], cwd=root, check=True)
         stamp.write_text(fingerprint, encoding='ascii')
     subprocess.run([str(python), '-m', 'pip', 'check'], cwd=root, check=True)
-    subprocess.run([str(python), '-m', 'flask', '--app', 'app', 'db', 'upgrade'], cwd=root, check=True)
     return python
 
 
-def serve(port, open_browser):
-    from waitress import create_server
-    from airisk import create_app
+def serve(port, open_browser, prepare_only=False):
+    from airisk.runtime import instance_lock, local_app, migrate, serve_application
 
-    app = create_app()
-    # Windows SO_REUSEADDR permits two listeners on one port. Reserve it
-    # exclusively before passing the socket to Waitress or opening a browser.
-    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    try:
-        if os.name == 'nt':
-            listener.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
-        else:
-            listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        listener.bind(('127.0.0.1', port))
-        server = create_server(app, sockets=[listener], threads=4,
-                               max_request_body_size=app.config['MAX_CONTENT_LENGTH'])
-    except BaseException:
-        listener.close()
-        raise
-    url = f'http://127.0.0.1:{port}/'
-    print(f'AIrisk is running at {url}\nData: {app.instance_path}\nKeep this window open. Stop with Ctrl+C.', flush=True)
-    try:
-        if open_browser:
-            try:
-                webbrowser.open(url)
-            except (webbrowser.Error, OSError):
-                print(f'Open {url} in your browser.', flush=True)
-        server.run()
-    finally:
-        server.close()
-        server.task_dispatcher.shutdown()
+    instance = Path(os.environ.get('AIRISK_INSTANCE', ROOT / 'instance')).resolve()
+    with instance_lock(instance):
+        app = local_app(instance)
+        migrate(app)
+        if not prepare_only:
+            serve_application(app, port, open_browser)
 
 
 def main(argv=None):
@@ -92,14 +67,15 @@ def main(argv=None):
         parser.error('This launcher is for a local pilot. Follow docs/OPERATIONS.md for a hosted deployment.')
     try:
         if args.serve:
-            serve(args.port, not args.no_browser)
+            serve(args.port, not args.no_browser, args.prepare_only)
         else:
             python = prepare()
-            if not args.prepare_only:
-                command = [str(python), str(ROOT / 'run_local.py'), '--serve', '--port', str(args.port)]
-                if args.no_browser:
-                    command.append('--no-browser')
-                return subprocess.call(command, cwd=ROOT)
+            command = [str(python), str(ROOT / 'run_local.py'), '--serve', '--port', str(args.port)]
+            if args.no_browser:
+                command.append('--no-browser')
+            if args.prepare_only:
+                command.append('--prepare-only')
+            return subprocess.call(command, cwd=ROOT)
     except KeyboardInterrupt:
         return 0
     except (OSError, RuntimeError, subprocess.CalledProcessError) as exc:

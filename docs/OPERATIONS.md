@@ -6,7 +6,7 @@ This release supports one organization per deployment and a modest number of int
 
 On Windows, run `.\run-windows.cmd` in Command Prompt or PowerShell using an approved Python 3.12 installation (3.11 is also supported). WSL, Docker, Bash, Node and administrator privileges are not needed to run the application. On Linux/macOS use `bash run-local.sh`. Both launchers bind Waitress to `127.0.0.1:5000` and open the browser. Use `--no-browser` to suppress this or `--port 5050` to choose another port. Keep the console open and stop with Ctrl+C.
 
-Create the first administrator in the browser, then create a separate reviewer in Team. The browser setup route is available only in development, from a loopback address, before the first account exists. Do not expose development mode through a public reverse proxy.
+Create the first administrator using the private setup link opened/printed by the launcher, then create a separate reviewer in Team. The browser setup route requires that random link, development mode, a loopback address and an empty workspace. Manual WSGI startup does not generate the link; use the administrator CLI to create the first account. Do not expose development mode through a public reverse proxy. The [native Windows package](WINDOWS_IT_REVIEW.md) includes its interpreter and needs no pip/Python installation at runtime.
 
 Windows uses `.venv-windows/`; Linux/macOS use `.venv/`. The launcher installs `requirements.txt` on first use and when that file changes, checks the installed packages, and applies migrations before starting the server. Normal restarts do not contact a package index. First installation/updates need access to the organization's approved Python package source; pip honors its normal index, proxy and offline-wheel configuration. No PowerShell execution-policy bypass is used.
 
@@ -39,12 +39,13 @@ The local launcher rejects `APP_ENV=production` because production cookies requi
 
 ## Production container
 
-Provision HTTPS at your ingress/reverse proxy, retain the database volume, and keep the application reachable only through the intended internal route. The supplied Compose port binds to the host's loopback interface. Configure your HTTPS proxy to forward to `127.0.0.1:8080`. No proxy headers are trusted for authentication or setup access.
+Provision HTTPS at your ingress/reverse proxy, retain the database volume, and keep the application reachable only through the intended internal route. The supplied Compose port binds to the host's loopback interface. Configure your HTTPS proxy to forward to `127.0.0.1:8080`, preserving the public Host header. Set `AIRISK_TRUSTED_HOSTS` to the exact approved hostname(s), comma separated; include `127.0.0.1` for local health probes. Do not configure wildcard domains. Origin validation uses HTTPS in production. No proxy headers are trusted for authentication or setup access.
 
 Generate the signing secret without printing it and keep it in your approved secret store or protected environment configuration:
 
 ```bash
 export SECRET_KEY="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
+export AIRISK_TRUSTED_HOSTS="airisk.your-company.example,127.0.0.1"
 docker compose build
 docker compose run --rm app python -m flask --app app create-user --role admin
 docker compose up -d
@@ -60,8 +61,10 @@ Persist the same secret across restarts. Changing it invalidates all sessions. `
 | `SECRET_KEY` | Required in production; otherwise generated once under the instance directory |
 | `AIRISK_INSTANCE` | Absolute path to the instance directory; defaults to the repository's `instance/` |
 | `DATABASE_URL` | `sqlite:///airisk.db`; other database backends are not yet validated |
+| `AIRISK_TRUSTED_HOSTS` | Loopback hosts by default; exact comma-separated hostnames for an HTTPS deployment |
+| `AIRISK_SETUP_TOKEN` | Local launcher generates a private token; automated disposable tests may supply one of at least 32 characters |
 
-The health endpoint `/health` returns 200 when the schema is accessible and 503 otherwise. It exposes no assessment information. Gunicorn logs are written to stdout/stderr. Set your ingress request limits and authentication monitoring for your environment; the application adds per-account login throttling, not a comprehensive network abuse-control service.
+The health endpoint `/health` returns 200 when the schema is accessible and 503 otherwise. It exposes no assessment information. Gunicorn logs are written to stdout/stderr. Set your ingress request limits and authentication monitoring for your environment. Atomic login budgets allow 10 attempts/account, 50/source and 200/workspace per 15 minutes; source/workspace budgets count successful logins too. A reverse proxy shares one source bucket because forwarded addresses are untrusted. Review these limits before a larger rollout; they are not a comprehensive network abuse-control service.
 
 ## Accounts
 
@@ -81,7 +84,7 @@ Linux/macOS or container equivalent:
 docker compose exec app python -m flask --app app reset-password --email person@example.com
 ```
 
-Resetting/changing a password or disabling an account revokes existing sessions. Administrators should maintain at least two functioning accounts with review authority; the application prevents disabling your own account.
+Logout revokes the current session server-side. Resetting/changing a password or disabling an account revokes existing sessions. Sessions have an eight-hour hard expiry. The security migration requires existing users to sign in again; it preserves their accounts and records. Administrators should maintain at least two functioning accounts with review authority; the application prevents disabling your own account.
 
 ## Backup and recovery
 
@@ -140,6 +143,9 @@ Use an approved native Node installation for development tests only. In one Powe
 
 ```powershell
 $env:AIRISK_INSTANCE = Join-Path $env:TEMP ('airisk-browser-' + [guid]::NewGuid())
+$env:AIRISK_SETUP_TOKEN = [guid]::NewGuid().ToString('N') + [guid]::NewGuid().ToString('N')
+# Copy this disposable token to the test terminal; do not reuse a real setup link.
+$env:AIRISK_SETUP_TOKEN
 .\run-windows.cmd --port 5057 --no-browser
 ```
 
@@ -148,7 +154,10 @@ In a second PowerShell window in the repository:
 ```powershell
 npm ci
 npx playwright install chromium
+$env:AIRISK_SETUP_TOKEN = 'PASTE_THE_DISPOSABLE_SERVER_TOKEN_HERE'
 node tests/browser.cjs
 ```
 
 Stop the disposable server after the test. Use a fresh `AIRISK_INSTANCE` for each run. For a different port, set `AIRISK_TEST_URL` in the test terminal. `AIRISK_BROWSER` optionally selects an already installed Chromium/Edge executable. The browser run covers account setup, author/reviewer workflows, Claude handoffs with synthetic responses, exports and mobile layout on the native server.
+
+For the packaged executable, `python tests/package_windows.py --exe PATH_TO_AIrisk.exe --node PATH_TO_node.exe` starts a disposable instance itself, removes Python from the app's PATH, runs the browser journey, checks hostile Host/setup access, duplicate startup, restart persistence, administrator maintenance and live backup. Set `AIRISK_BROWSER` to an installed Edge/Chromium executable if needed. Package hashes, signing and the IT acceptance boundaries are described in [Windows IT review](WINDOWS_IT_REVIEW.md).

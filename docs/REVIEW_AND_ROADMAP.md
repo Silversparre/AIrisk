@@ -68,6 +68,8 @@ Native Windows checks exercise the same backend suite and browser journeys with 
 
 ## Next increments, in order
 
+The 8 November security/corporate packaging pass adds revocable sessions, stricter request/setup boundaries, atomic login throttling and local instance locking, plus a native executable and unsigned MSIX for IT review. See [security findings and validation](SECURITY_REVIEW.md) and [Windows signing/deployment requirements](WINDOWS_IT_REVIEW.md). Corporate signing and fleet policy qualification require IT's actual identity/policy; the package does not claim approval merely because it runs locally.
+
 | Priority | Increment | Acceptance criteria |
 | --- | --- | --- |
 | P1 | Claude Enterprise connector or API integration | Web handoff is available now. Add an organization-approved authenticated connector or separately configured API access, with per-user context access, bounded suggestions, explicit human acceptance and a live Enterprise acceptance test. See [Claude assistance](CLAUDE_ASSISTANCE.md). |

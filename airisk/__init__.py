@@ -4,7 +4,7 @@ from pathlib import Path
 from datetime import timedelta
 from flask import Flask, render_template
 from sqlalchemy.orm.exc import StaleDataError
-from werkzeug.exceptions import Conflict
+from werkzeug.exceptions import Conflict, SecurityError
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
 from sqlalchemy import event
@@ -31,7 +31,11 @@ def create_app(config=None):
         SQLALCHEMY_TRACK_MODIFICATIONS=False, SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SECURE=production, SESSION_COOKIE_SAMESITE='Lax',
         PERMANENT_SESSION_LIFETIME=timedelta(hours=8), MAX_CONTENT_LENGTH=128 * 1024,
-        WTF_CSRF_TIME_LIMIT=8 * 60 * 60, PRODUCTION=production)
+        WTF_CSRF_TIME_LIMIT=8 * 60 * 60, PRODUCTION=production,
+        TRUSTED_HOSTS=[host.strip() for host in os.environ.get('AIRISK_TRUSTED_HOSTS', 'localhost,127.0.0.1,[::1]').split(',') if host.strip()],
+        SETUP_TOKEN=os.environ.get('AIRISK_SETUP_TOKEN'),
+        LOGIN_ACCOUNT_LIMIT=10, LOGIN_SOURCE_LIMIT=50, LOGIN_GLOBAL_LIMIT=200,
+        MAX_FORM_MEMORY_SIZE=128 * 1024, MAX_FORM_PARTS=100)
     if config:
         app.config.update(config)
     Path(app.instance_path).mkdir(parents=True, exist_ok=True)
@@ -51,6 +55,9 @@ def create_app(config=None):
         raise RuntimeError('SECRET_KEY must contain at least 32 characters.')
     db.init_app(app)
     Migrate(app, db, directory=str(root / 'migrations'))
+    from .security import RecordIDConverter, request_boundary
+    app.url_map.converters['int'] = RecordIDConverter
+    app.before_request(request_boundary)
     csrf.init_app(app)
     from .web import bp
     from .claude import bp as claude_bp
@@ -63,7 +70,12 @@ def create_app(config=None):
     def headers(response):
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['X-Frame-Options'] = 'DENY'
-        response.headers['Referrer-Policy'] = 'same-origin'
+        # A global no-referrer policy can make browser form POST origins "null".
+        # Keep normal same-origin forms compatible with the Origin boundary;
+        # the private bootstrap redirect itself must not propagate its token.
+        from flask import request
+        response.headers['Referrer-Policy'] = 'no-referrer' if request.path == '/setup' and request.args.get('token') else 'same-origin'
+        response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
         response.headers['Content-Security-Policy'] = "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
         response.headers['Cache-Control'] = 'no-store'
         if app.config['PRODUCTION']:
@@ -72,6 +84,11 @@ def create_app(config=None):
 
     for status in (400, 403, 404, 409, 413, 429):
         app.register_error_handler(status, lambda e: (render_template('error.html', error=e), e.code))
+
+    @app.errorhandler(SecurityError)
+    def untrusted_host(_):
+        # Host rejection occurs before Flask has an adapter for template URLs.
+        return 'Untrusted request host.', 400, {'Content-Type': 'text/plain; charset=utf-8'}
 
     @app.errorhandler(StaleDataError)
     def concurrent_edit(_):

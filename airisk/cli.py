@@ -1,8 +1,8 @@
 import click
 from datetime import date, timedelta
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from werkzeug.security import generate_password_hash
-from .models import db, User, Vendor, AISystem, Evidence
+from .models import db, User, Vendor, AISystem, Evidence, AuthSession
 from .services import new_assessment
 
 
@@ -33,6 +33,7 @@ def register_commands(app):
             raise click.ClickException('An existing account and a password of at least 12 characters are required.')
         u.password_hash = generate_password_hash(password)
         u.session_version += 1
+        db.session.execute(delete(AuthSession).where(AuthSession.user_id == u.id))
         db.session.commit()
         click.echo('Password updated. Existing sessions for this account have been revoked.')
 

@@ -1,5 +1,9 @@
 .venv/
 .venv-windows/
+.venv-build-windows/
+build/
+dist/
+artifacts/
 .env
 instance/
 __pycache__/
