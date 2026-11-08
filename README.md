@@ -45,6 +45,18 @@ On Linux/macOS, use `.venv/bin/python` instead. Existing accounts, assessments a
 
 Changed system/vendor context requires a new assessment. Closing an action does not silently lower a risk rating or broaden an authorization. Decided assessments cannot be edited; retain them as the historical record.
 
+## Connect OneTrust and Coupa
+
+Use **Integrations** to import a Coupa requisition line and supplier, complete its AI context, and publish the latest review summary back to dedicated line fields. On an assessment, **Connected assessments & procurement** can launch or link OneTrust, publish a reviewed summary into a reserved question, and sync external progress. Decisions remain subject to the existing independent review workflow.
+
+Connections are disabled until configured. See [enterprise integration setup](docs/INTEGRATIONS.md) for credentials, tenant mappings, recovery and the combined `AIrisk.exe integrations-sync` polling command. Version 1.2 includes all three connectors in the Windows package; live tenant validation is required after configuration.
+
+## Track remediation in HaloITSM
+
+After an administrator configures the connection, use **Create Halo ticket** on a saved action. AIrisk sends the action, owner and due date, then displays Halo status, assignment and a recent public update. Use **Sync Halo progress** or schedule `flask --app app halo-sync` every five minutes. A completed ticket still requires the normal evidence and independent verification; the assessment decision stays preserved.
+
+The connector includes duplicate protection, recovery for unconfirmed creation, retry backoff, an integration status page and report/export provenance. It is disabled until configured and has not been tested against your Halo tenant. See [HaloITSM setup and operation](docs/HALOITSM.md), including the native Windows sync command.
+
 ## Use Claude to help draft and review
 
 Open **Claude assistance** inside an assessment. Prepare a focused prompt for Claude.ai or your Claude Enterprise workspace, bring its JSON response back, and compare its suggestions with the current assessment. Owners explicitly accept selected draft reasoning and ratings; reviewers can request a critique without changing the assessment or decision.

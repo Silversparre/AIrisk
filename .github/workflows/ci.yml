@@ -51,6 +51,10 @@ jobs:
             sleep 1
           done
           npm run test:browser
+      - name: Exercise HaloITSM browser workflow with simulated API
+        run: python tests/halo_browser.py
+      - name: Exercise OneTrust and Coupa browser workflows with simulated APIs
+        run: python tests/halo_browser.py --enterprise
       - name: Check production container
         run: |
           docker build -t airisk:test .

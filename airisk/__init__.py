@@ -26,6 +26,10 @@ def create_app(config=None):
     app = Flask(__name__, template_folder=str(root / 'templates'), static_folder=str(root / 'static'),
                 instance_path=os.environ.get('AIRISK_INSTANCE', str(root / 'instance')))
     production = os.environ.get('APP_ENV', 'development') == 'production'
+    from .halo import environment as halo_environment
+    from .enterprise_api import environment as enterprise_environment
+    app.config.update(halo_environment())
+    app.config.update(enterprise_environment())
     app.config.update(SECRET_KEY=os.environ.get('SECRET_KEY'),
         SQLALCHEMY_DATABASE_URI=os.environ.get('DATABASE_URL', 'sqlite:///airisk.db'),
         SQLALCHEMY_TRACK_MODIFICATIONS=False, SESSION_COOKIE_HTTPONLY=True,
@@ -61,10 +65,16 @@ def create_app(config=None):
     csrf.init_app(app)
     from .web import bp
     from .claude import bp as claude_bp
+    from .halo_web import bp as halo_bp, register_commands as halo_commands
+    from .enterprise_web import bp as integrations_bp, register_commands as integration_commands
     from .cli import register_commands
     app.register_blueprint(bp)
     app.register_blueprint(claude_bp)
+    app.register_blueprint(halo_bp)
+    app.register_blueprint(integrations_bp)
     register_commands(app)
+    halo_commands(app)
+    integration_commands(app)
 
     @app.after_request
     def headers(response):

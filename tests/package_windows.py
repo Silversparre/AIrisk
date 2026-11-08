@@ -75,11 +75,15 @@ def main():
                         subprocess.run(backup_command, cwd=folder, env=env, check=True, timeout=20)
                         refused = subprocess.run(backup_command, cwd=folder, env=env, capture_output=True, timeout=20)
                         assert refused.returncode != 0, 'Existing backup was overwritten.'
+                        sync = subprocess.run([executable, '--instance', str(instance), 'integrations-sync', '--limit', '5'],
+                                              cwd=folder, env=env, capture_output=True, text=True, timeout=30)
+                        assert sync.returncode == 0 and '0 synced' in sync.stdout, (sync.stdout, sync.stderr)
                         with closing(sqlite3.connect(backup)) as saved:
                             assert saved.execute('PRAGMA integrity_check').fetchone()[0] == 'ok'
                     with closing(sqlite3.connect(instance / 'airisk.db')) as database:
                         counts = {name: database.execute(f'SELECT count(*) FROM {name}').fetchone()[0]
-                                  for name in ('user', 'ai_system', 'assessment', 'evidence', 'audit_event', 'claude_exchange')}
+                                  for name in ('user', 'ai_system', 'assessment', 'evidence', 'audit_event', 'claude_exchange',
+                                               'halo_ticket', 'external_link')}
                         if before is None:
                             before = counts
                             assert counts['user'] == 2 and counts['assessment'] >= 2, counts

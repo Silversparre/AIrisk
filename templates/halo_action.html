@@ -1,0 +1,53 @@
+{% set link = r.halo_ticket %}
+{% if link or (r.action and not r.not_applicable and not action_resolved(r) and a.state in ['draft','in_review','conditional']) %}
+<section class="halo-action follow-up" aria-label="HaloITSM remediation for action {{ r.id }}">
+  <h3>HaloITSM remediation</h3>
+  {% if link %}
+    {% if link.ticket_id %}
+      <p><a href="{{ link.ticket_url }}" target="_blank" rel="noopener noreferrer">Halo ticket #{{ link.ticket_id }} ↗</a>
+      {% if link.progress %} · {{ badge(link.progress.status) }}{% endif %}</p>
+      {% if link.progress %}
+        <dl>
+          <dt>Halo assignment</dt><dd>{{ link.progress.assignee or 'Unassigned' }}{% if link.progress.team %} · {{ link.progress.team }}{% endif %}</dd>
+          <dt>Halo target date</dt><dd>{{ link.progress.target_date or 'Not set' }}</dd>
+          <dt>Last synced</dt><dd>{{ link.last_synced_at.strftime('%d %b %Y %H:%M') if link.last_synced_at else 'Not yet synced' }} UTC</dd>
+        </dl>
+        {% if link.progress.public_note and link.progress.public_note.text %}
+          <p><strong>Recent public update from Halo</strong></p><p class="preserve">{{ link.progress.public_note.text }}</p>
+          <small>{{ link.progress.public_note.date }}</small>
+        {% endif %}
+        {% if link.progress.completion_reported and not action_resolved(r) %}
+          <p class="notice warning">Halo reports completion. {% if a.state=='conditional' %}Review the ticket evidence and submit action completion below for independent verification.{% else %}Review the ticket evidence through the assessment’s normal review workflow.{% endif %}</p>
+        {% endif %}
+      {% else %}<p class="muted">Progress has not been synced yet.</p>{% endif %}
+      {% if link.reopened %}<p class="notice warning">This Halo ticket returned to an incomplete status. Review the remediation and any earlier completion verification.</p>{% endif %}
+      {% if halo_action_changed(r) %}<p class="notice warning">The saved action, owner, or due date changed after this ticket was prepared. Review and update the ticket in Halo; these changes are not sent automatically.</p>{% endif %}
+    {% elif link.state in ['creating','uncertain'] %}
+      <p class="notice warning">Ticket creation is not confirmed. Check Halo before creating another ticket.</p>
+      <p>Search Halo for this reference: <code>[AIrisk:{{ link.correlation }}]</code></p>
+      {% if halo_can_manage(r,g.user) %}
+        <form method="post" action="{{ url_for('halo.recover',risk_id=r.id) }}" class="stack">
+          {{ csrf() }}<label>Existing Halo ticket ID<input name="ticket_id" type="number" min="1" max="2147483647" required></label>
+          <button class="secondary">Recover matching ticket</button>
+        </form>
+      {% endif %}
+      {% if g.user.role=='admin' %}
+        <details><summary>No ticket exists in Halo</summary>
+          <form method="post" action="{{ url_for('halo.reset',risk_id=r.id) }}" class="stack">
+            {{ csrf() }}<label class="check"><input type="checkbox" name="confirmed_absent" value="yes" required>I searched Halo for this reference and confirmed that no ticket was created.</label>
+            <button class="secondary">Allow a new creation attempt</button>
+          </form>
+        </details>
+      {% endif %}
+    {% endif %}
+    {% if link.last_error %}<p class="notice error">{{ link.last_error }}{% if link.next_sync_at %}<br>Next retry: {{ link.next_sync_at.strftime('%d %b %Y %H:%M:%S') }} UTC.{% endif %}</p>{% endif %}
+  {% endif %}
+  {% if link and link.ticket_id and (halo_can_manage(r,g.user) or g.user.role=='reviewer') %}
+    <form method="post" action="{{ url_for('halo.sync',risk_id=r.id) }}">{{ csrf() }}<button class="secondary" {% if not halo_ready %}disabled{% endif %}>Sync Halo progress</button></form>
+  {% elif (not link or link.state=='ready') and halo_can_manage(r,g.user) and r.action and not r.not_applicable and not action_resolved(r) and a.state in ['draft','in_review','conditional'] %}
+    <p class="muted">Sends this saved action, system and risk names, accountable owner, due date, and assessment link when configured.</p>
+    <form method="post" action="{{ url_for('halo.create',risk_id=r.id) }}">{{ csrf() }}<input type="hidden" name="revision" value="{{ r.revision }}"><button class="secondary" {% if not halo_ready %}disabled{% endif %}>Create Halo ticket</button></form>
+  {% endif %}
+  {% if not halo_ready %}<p class="muted">HaloITSM needs administrator configuration.{% if g.user.role=='admin' %} <a href="{{ url_for('halo.settings') }}">View integration setup</a>.{% endif %}</p>{% endif %}
+</section>
+{% endif %}

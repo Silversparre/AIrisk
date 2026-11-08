@@ -28,6 +28,8 @@ First startup displays/opens a private setup link. Create an administrator, then
 
 ## Reproducible build inputs
 
+Version 1.2.0 bundles HaloITSM, OneTrust and Coupa. Configured connectors make outbound HTTPS calls to their API and OAuth hosts. `AIrisk.exe integrations-sync --limit 50` polls all three alongside the running local server without running migrations; `halo-sync` remains available. Start the upgraded application once before scheduling polling. Connection guides (`INTEGRATIONS.md` and `HALOITSM.md`) are included in the review bundle. All connectors remain disabled until host configuration is supplied; customer-tenant acceptance is still required.
+
 Build on an approved **native Windows CPython 3.12 x64** installation. `packaging/windows/requirements.lock` pins every build/runtime wheel by version and SHA-256. A Python base-runtime update requires a new build and review. Build scripts require an approved Git executable on PATH for provenance. Do not build from a directory containing unreviewed source changes.
 
 ```powershell
@@ -56,8 +58,8 @@ Microsoft documents [manual MSIX manifests](https://learn.microsoft.com/en-us/wi
 IT can use its existing code-signing service, certificate store or Microsoft Artifact Signing. No private keys/passwords belong in this repository. For a certificate already provisioned in the signing operator's Current User `My` store, the following is a template, with explicit certificate selection and an IT-approved RFC3161 timestamp service:
 
 ```powershell
-signtool sign /sha1 CERTIFICATE_THUMBPRINT /s My /fd SHA256 /tr https://IT_APPROVED_TIMESTAMP_SERVICE /td SHA256 AIrisk-1.1.0-unsigned.msix
-signtool verify /pa /all /v AIrisk-1.1.0-unsigned.msix
+signtool sign /sha1 CERTIFICATE_THUMBPRINT /s My /fd SHA256 /tr https://IT_APPROVED_TIMESTAMP_SERVICE /td SHA256 AIrisk-1.2.0-unsigned.msix
+signtool verify /pa /all /v AIrisk-1.2.0-unsigned.msix
 ```
 
 Use `/sm` only if IT intentionally provisions the certificate in the Local Machine store. A managed/cloud signer needs its provider-specific integration; the certificate-store example does not configure it. After signing, create a new final filename and release manifest/hashes: signing changes the artifact, so the unsigned manifest will no longer match. Retain the unsigned review evidence separately.

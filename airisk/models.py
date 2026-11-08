@@ -108,6 +108,7 @@ class Risk(db.Model):
     action_done = db.Column(db.Boolean, nullable=False, default=False)
     evidence = db.relationship('Evidence', secondary=risk_evidence, backref='risks')
     action_updates = db.relationship('ActionUpdate', backref='risk', order_by='ActionUpdate.id.desc()')
+    halo_ticket = db.relationship('HaloTicket', back_populates='risk', uselist=False)
     __mapper_args__ = {'version_id_col': revision}
     __table_args__ = tuple(db.CheckConstraint(f'{field} BETWEEN 1 AND 5', name=field+'_range')
                           for field in ('likelihood', 'impact', 'residual_likelihood', 'residual_impact'))
@@ -190,3 +191,80 @@ class ClaudeExchange(db.Model):
     imported_at = db.Column(db.DateTime)
     accepted_at = db.Column(db.DateTime)
     __mapper_args__ = {'version_id_col': revision}
+
+
+class HaloTicket(db.Model):
+    """One durable remote ticket per action; progress never changes the decision."""
+    id = db.Column(db.Integer, primary_key=True)
+    revision = db.Column(db.Integer, nullable=False, default=1)
+    risk_id = db.Column(db.Integer, db.ForeignKey('risk.id'), nullable=False, unique=True)
+    risk = db.relationship('Risk', back_populates='halo_ticket')
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    api_url = db.Column(db.String(1000), nullable=False)
+    ticket_url_template = db.Column(db.String(1000), nullable=False)
+    correlation = db.Column(db.String(36), nullable=False, unique=True)
+    ticket_id = db.Column(db.Integer)
+    state = db.Column(db.String(20), nullable=False, default='ready')
+    action_context = db.Column(db.JSON, nullable=False)
+    request_payload = db.Column(db.JSON, nullable=False)
+    progress = db.Column(db.JSON)
+    reopened = db.Column(db.Boolean, nullable=False, default=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=now)
+    last_attempt_at = db.Column(db.DateTime)
+    last_synced_at = db.Column(db.DateTime)
+    next_sync_at = db.Column(db.DateTime)
+    failure_count = db.Column(db.Integer, nullable=False, default=0)
+    last_error = db.Column(db.String(500), nullable=False, default='')
+    lease_token = db.Column(db.String(36))
+    lease_until = db.Column(db.DateTime)
+    __table_args__ = (db.UniqueConstraint('api_url', 'ticket_id', name='uq_halo_ticket_remote'),)
+    __mapper_args__ = {'version_id_col': revision}
+
+    @property
+    def ticket_url(self):
+        return self.ticket_url_template.replace('{id}', str(self.ticket_id)) if self.ticket_id else ''
+
+
+class ExternalLink(db.Model):
+    """Durable OneTrust handoff or Coupa line intake with recoverable publication."""
+    id = db.Column(db.Integer, primary_key=True)
+    revision = db.Column(db.Integer, nullable=False, default=1)
+    provider = db.Column(db.String(20), nullable=False)
+    assessment_id = db.Column(db.Integer, db.ForeignKey('assessment.id'))
+    assessment = db.relationship('Assessment', backref=db.backref('onetrust_link', uselist=False))
+    system_id = db.Column(db.Integer, db.ForeignKey('ai_system.id'))
+    system = db.relationship('AISystem', backref=db.backref('coupa_link', uselist=False))
+    vendor_id = db.Column(db.Integer, db.ForeignKey('vendor.id'))
+    vendor = db.relationship('Vendor')
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    api_url = db.Column(db.String(1000), nullable=False)
+    url_template = db.Column(db.String(1000), nullable=False)
+    correlation = db.Column(db.String(36), nullable=False, unique=True)
+    external_id = db.Column(db.String(80))
+    state = db.Column(db.String(20), nullable=False, default='ready')
+    source = db.Column(db.JSON, nullable=False, default=dict)
+    progress = db.Column(db.JSON)
+    request_payload = db.Column(db.JSON)
+    publication = db.Column(db.JSON)
+    publication_state = db.Column(db.String(20), nullable=False, default='none')
+    write_target = db.Column(db.JSON)
+    published_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, nullable=False, default=now)
+    last_synced_at = db.Column(db.DateTime)
+    next_sync_at = db.Column(db.DateTime)
+    failure_count = db.Column(db.Integer, nullable=False, default=0)
+    last_error = db.Column(db.String(500), nullable=False, default='')
+    lease_token = db.Column(db.String(36))
+    lease_until = db.Column(db.DateTime)
+    __mapper_args__ = {'version_id_col': revision}
+    __table_args__ = (
+        db.UniqueConstraint('provider', 'api_url', 'external_id', name='uq_external_remote'),
+        db.UniqueConstraint('assessment_id', name='uq_external_assessment'),
+        db.UniqueConstraint('system_id', name='uq_external_system'),
+        db.CheckConstraint("(provider = 'onetrust' AND assessment_id IS NOT NULL AND system_id IS NULL) OR "
+                           "(provider = 'coupa' AND assessment_id IS NULL)", name='provider_scope'),
+    )
+
+    @property
+    def remote_url(self):
+        return self.url_template.replace('{id}', self.external_id.split(':')[0]) if self.external_id else ''
