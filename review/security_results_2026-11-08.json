@@ -1,0 +1,55 @@
+{
+  "date": "2026-11-08",
+  "baseline_commit": "e2192d69d77bb6ce67fc49a4ddd315b45e97d19f",
+  "linux_tests": {
+    "passed": 55
+  },
+  "windows_tests": {
+    "application_security_runtime_passed": 52,
+    "desktop_backup_integrity_passed": 3
+  },
+  "packaged_windows": {
+    "platform": "win32",
+    "python_on_runtime_path": false,
+    "restart_preserved": {
+      "user": 2,
+      "ai_system": 3,
+      "assessment": 3,
+      "evidence": 1,
+      "audit_event": 47,
+      "claude_exchange": 2
+    },
+    "backup_integrity": "ok",
+    "package_acceptance": "passed"
+  },
+  "browser": {
+    "journeys": 14,
+    "risks_assessed": 16,
+    "console_errors": 0,
+    "provider_responses": "synthetic; no live Claude Enterprise account exercised"
+  },
+  "baseline_reproductions": {
+    "untrusted_host": "200 before; 400 after",
+    "copied_cookie_after_logout": "authenticated before; redirected to login after",
+    "unicode_evidence_identifier": "ValueError/500 before; 400 after",
+    "foreign_origin_with_valid_csrf": "accepted before; 403 after; defense in depth, not a CSRF bypass"
+  },
+  "dependency_audits": [
+    {
+      "input": "Linux runtime requirements",
+      "packages": 18,
+      "known_vulnerabilities": 0
+    },
+    {
+      "input": "Windows build lock",
+      "packages": 24,
+      "known_vulnerabilities": 0
+    }
+  ],
+  "windows_sdk": {
+    "nuget": "Microsoft.Windows.SDK.BuildTools",
+    "version": "10.0.26100.9457",
+    "sha256": "4c2e0d85f3490e7f7c065c35b4c47fe913b1bc9627e9711ae349b2cdc7edc791"
+  },
+  "signing": "unsigned; no certificate/trust/policy changes or MSIX installation performed"
+}

@@ -13,8 +13,14 @@ const errors = [];
   const context = await browser.newContext({viewport:{width:1440,height:1000}});
   const page = await context.newPage();
   page.on('pageerror', e => errors.push(e.message));
+  page.on('response', async response => {
+    if (response.request().method() === 'POST' && response.status() >= 500)
+      errors.push(`Server error ${response.status()} on ${new URL(response.url()).pathname}`);
+  });
   try {
-    await page.goto(base + '/setup');
+    const setupToken = process.env.AIRISK_SETUP_TOKEN;
+    assert(setupToken && setupToken.length >= 32, 'Set AIRISK_SETUP_TOKEN for the disposable test server and browser');
+    await page.goto(base + '/setup?token=' + encodeURIComponent(setupToken));
     await page.getByLabel('Your name').fill('QA Owner');
     await page.getByLabel('Email', {exact:true}).fill('owner@qa.example');
     await page.getByLabel(/^Password/).fill(password);

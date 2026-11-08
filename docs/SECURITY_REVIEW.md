@@ -1,0 +1,39 @@
+# Security review — 8 November 2026
+
+Scope: application source, request handling, local accounts, reviewer authorization, Claude imports, migrations, local launchers and the native Windows distribution. This is a source review with adversarial regression tests and local browser/runtime checks, not an independent penetration test or a compliance certificate. Earlier PDF reports in `docs/archive/` describe the retired prototype.
+
+## Findings addressed
+
+| Finding | Impact and correction | Regression evidence |
+| --- | --- | --- |
+| Copied login cookie survived logout | A stolen cookie retained access after its owner signed out. Authentication now requires an opaque server-side session record. Logout deletes it; password changes, resets and account disabling invalidate all user sessions. Hard expiry is eight hours, even if a cookie is replayed/refreshed. | Copied-cookie replay after logout; expired server session; existing password-reset/disable tests. |
+| Arbitrary Host accepted | The local service lacked a hostname boundary against browser/DNS rebinding attacks. Local launchers now allow only loopback hostnames; hosted operation requires an explicit hostname allowlist. Rejected Host values return a plain 400 without template URL generation. | Untrusted Host rejection before serving pages. |
+| First administrator relied on loopback alone | Another local process/user could claim an uninitialized workspace. First setup now requires the private random link from the launcher, plus CSRF protection. A unique database claim makes simultaneous setup atomic. Production browser setup remains disabled. | Missing/guessed nonce denied; two concurrent valid setup requests yield exactly one administrator. |
+| Account-only, non-atomic login throttling | Rotating names and parallel attempts could bypass limits and cause expensive password hashing. Atomic SQLite reservations now enforce account, source and workspace budgets before hashing. Old counters expire; forwarded IP headers are not trusted. | Parallel attempts cannot exceed the account allowance; rotating names and forged forwarding headers hit the source limit. |
+| Malformed record identifiers caused 500s | Unicode digits and oversized evidence identifiers could reach unsafe integer/database conversion. Explicit ASCII/length validation now returns 400; excessive URL identifiers return 404. | Unicode and oversized form/path cases. |
+| Author could return their own review to draft | An author with administrator rights could clear independent applicability review. Returning an assessment now requires the same independent reviewer boundary as a decision. | Author return denied; reviewer workflow retained. |
+| Parallel local instances could share one database | Migrations or multiple app versions could compete for the same data directory. An OS file lock covers startup, migrations and serving. Windows also reserves the listening socket exclusively. | A second instance fails clearly, including when using a different port; occupied-port and restart/data-retention tests. |
+
+Defense in depth: unsafe requests with a foreign Origin or cross-site Fetch Metadata are rejected in addition to CSRF checks. A valid-CSRF test demonstrates that boundary; it does **not** establish a prior CSRF bypass. Responses use same-origin referrers (no-referrer for the private bootstrap redirect), no-store, CSP, frame denial, MIME protection and disabled camera/microphone/geolocation permissions. Form size/part limits supplement the total request limit. Real-browser checks cover the interaction between referrer policy and form Origin headers.
+
+Existing controls reviewed: password hashes and generic failed-login responses; authorization for mutations; independent evidence verification; immutable decisions; optimistic concurrency; Jinja escaping; safe HTTPS evidence links; spreadsheet formula protection; strict Claude response schema, request fingerprint and explicit selected-field acceptance. Evidence URLs are stored as links, not fetched by the server. Claude content is never executed and cannot approve an assessment.
+
+## Deployment boundaries and remaining work
+
+- One organization per deployment. Every active account can read all workspace records. Roles restrict changes, not visibility. No tenant isolation, SSO or MFA is provided.
+- The desktop service listens only on `127.0.0.1`, using HTTP and local accounts. It is not a multi-machine collaboration server. Hosted access requires HTTPS, configured trusted hostnames and managed accounts; use the operations guide.
+- Login limits are 10/account, 50/source and 200/workspace per 15 minutes. Source/workspace limits also count successful logins. A hosted reverse proxy shares one source budget because forwarded IPs are deliberately untrusted. Size and configure ingress rate limiting before a larger rollout. Local malware can deny service; these controls do not isolate hostile code already running as the same Windows user.
+- SQLite, session secrets, backups and exports rely on OS access control and disk encryption. The database is not independently encrypted. Local administrators can alter it and the audit trail. Keep data in a private local profile; do not use a shared/network/synchronized directory. Use corporate backup, retention and endpoint controls.
+- Prompt transfer to Claude is manual and explicit. The organization must approve what may be shared and configure its Claude Enterprise workspace. No live Enterprise account/API validation is claimed by the synthetic-response tests.
+- The Windows review artifact is **unsigned**. Hashes detect accidental/tampered files only relative to a trusted copy of the manifest. Corporate signing, installation and AppLocker/Windows App Control acceptance still require IT's certificate/service and policy validation. Do not disable enforcement to run it.
+- Dependency audits are point-in-time checks of published advisories, not proof of safety. Rebuild and retest when the interpreter, dependencies, policy or framework sources change.
+
+## Verification and operations
+
+Local results on 8 November 2026: 55 regression tests passed on Linux and native Windows (52 application/security/runtime tests plus 3 desktop/backup tests). The native executable passed 14 real Edge browser journeys with zero console errors, then a restart preserving 2 users, 3 assessments and their evidence/audit/Claude records. Live backup integrity and overwrite refusal, hostile Host rejection, private setup, duplicate launch and administrator help also passed with Python absent from the executable's PATH. Published-advisory audits found no known vulnerabilities in the 18-package Linux runtime resolution or the 24-package Windows build lock. MakeAppx produced the unsigned MSIX successfully; signed installation and corporate enforcement remain IT acceptance work.
+
+Run `python -m unittest discover -s tests -v` for the application, security, migration/restore and real-server regressions. Run `tests/browser.cjs` against a fresh disposable instance with the same `AIRISK_SETUP_TOKEN` supplied to server and test. The browser fixture exercises assessment/reviewer and Claude handoff flows. Never run it against a real workspace or the preserved demo.
+
+The Windows bundle contains build metadata, a dependency inventory with licenses, and SHA-256 hashes. See [Windows IT review](WINDOWS_IT_REVIEW.md) for reproduction, signature coverage and deployment acceptance. Back up before upgrading; this migration preserves accounts and assessments but requires users to sign in again.
+
+Security baseline references: [Flask security guidance](https://flask.palletsprojects.com/en/stable/web-security/), [Microsoft exclusive socket guidance](https://learn.microsoft.com/en-us/windows/win32/winsock/using-so-reuseaddr-and-so-exclusiveaddruse), and [Microsoft package signing](https://learn.microsoft.com/en-us/windows/msix/package/signing-package-overview).

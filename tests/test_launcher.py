@@ -55,9 +55,15 @@ class LauncherTests(unittest.TestCase):
                         with urllib.request.urlopen(f'http://127.0.0.1:{port}/login', timeout=3) as response:
                             self.assertIn('Sign in', response.read().decode())
                         if restart == 0:
-                            occupied = subprocess.run(command, cwd=tmp, env=env, capture_output=True, text=True, timeout=15)
+                            # A different instance tests the socket boundary independently of the data lock.
+                            other_env = {**env, 'AIRISK_INSTANCE': str(Path(tmp) / 'another instance')}
+                            occupied = subprocess.run(command, cwd=tmp, env=other_env, capture_output=True, text=True, timeout=15)
                             self.assertNotEqual(occupied.returncode, 0)
                             self.assertIn('could not start', occupied.stderr)
+                            locked = subprocess.run(command[:-1] + [str(port % 60000 + 1)], cwd=tmp, env=env,
+                                                    capture_output=True, text=True, timeout=15)
+                            self.assertNotEqual(locked.returncode, 0)
+                            self.assertIn('already in use', locked.stderr)
                         with closing(sqlite3.connect(database)) as connection:
                             self.assertEqual(connection.execute('SELECT name FROM user').fetchone()[0], 'Retained account')
                     finally:

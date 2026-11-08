@@ -6,6 +6,8 @@ The application is a self-hosted workspace for **one organization**. All active 
 
 ## Start locally
 
+For a Windows installation without a separate Python dependency, use the native package described in [Windows IT review](docs/WINDOWS_IT_REVIEW.md). It includes a portable executable and an MSIX signing path. Review builds are unsigned; IT must approve/sign the chosen distribution before corporate deployment. See the [current security review and fixes](docs/SECURITY_REVIEW.md).
+
 Use your organization's approved Python 3.12 installation (Python 3.11 also works). **Windows runs natively; WSL and Docker are not required.** From the repository directory in Command Prompt or PowerShell:
 
 ```powershell
@@ -20,7 +22,7 @@ On Linux or macOS:
 bash run-local.sh
 ```
 
-The launcher opens [http://127.0.0.1:5000](http://127.0.0.1:5000) after starting Waitress bound to localhost. The first visit lets you create an administrator account. Then add a separate reviewer from **Team**. There are no default credentials. Dependencies are installed on first use and when `requirements.txt` changes; subsequent starts work without downloading packages. Use `--no-browser`, `--port 5050`, or `--prepare-only` when needed.
+The launcher starts Waitress bound to localhost. On first use, it opens a private setup link to create an administrator; keep that link to yourself. Later visits use [http://127.0.0.1:5000](http://127.0.0.1:5000). Add a separate reviewer from **Team**. There are no default credentials. Source-launcher dependencies are installed on first use and when `requirements.txt` changes; subsequent starts work without downloading packages. The packaged executable includes its dependencies. Use `--no-browser`, `--port 5050`, or `--prepare-only` when needed.
 
 Data is stored in `instance/airisk.db` and survives restarts. The local signing key is generated once in `instance/secret.key`. Both are ignored by Git. Stop the server with Ctrl+C.
 

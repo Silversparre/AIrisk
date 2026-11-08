@@ -1,14 +1,16 @@
 import csv
-import hashlib
 import io
 from uuid import uuid4
-from datetime import date, timedelta
+from datetime import date
 from functools import wraps
 from urllib.parse import urlsplit
 from flask import Blueprint, abort, current_app, flash, g, jsonify, redirect, render_template, request, session, url_for, Response
 from werkzeug.security import check_password_hash, generate_password_hash
-from sqlalchemy import select
-from .models import db, User, Vendor, AISystem, Assessment, Risk, Evidence, AuditEvent, LoginAttempt, ActionUpdate, now
+from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
+from .models import db, User, Vendor, AISystem, Assessment, Risk, Evidence, AuditEvent, ActionUpdate, AuthSession, SetupClaim, now
+from .security import (accept_setup_link, consume_login_budget, current_session, record_id,
+                       reset_account_budget, revoke_current_session, setup_access, start_session)
 from .catalog import OPTIONS, SOURCES, VERSION, REVIEWED_ON, REVIEW_BY, triage
 from .services import (new_assessment, audit, rating, stale, risk_complete, evidence_current,
                        blockers, assessment_payload, attention, action_resolved, TERMINAL)
@@ -106,7 +108,10 @@ def edit_assessment(a):
 @bp.before_app_request
 def load_user():
     uid = session.get('user_id')
-    g.user = db.session.get(User, uid) if isinstance(uid, int) else None
+    auth = current_session() if type(uid) is int else None
+    g.user = db.session.get(User, uid) if auth else None
+    if uid and not auth:
+        session.clear()
     if g.user and (not g.user.active or session.get('session_version') != g.user.session_version):
         session.clear()
         g.user = None
@@ -127,27 +132,14 @@ def login():
     if request.method == 'POST':
         email = text('email', 254, True).lower()
         password = text('password', 1024, True)
-        key = hashlib.sha256(email.encode()).hexdigest()
-        attempt = db.session.get(LoginAttempt, key)
-        if not attempt:
-            attempt = LoginAttempt(key=key, count=0, window_start=now())
-            db.session.add(attempt)
-        if now() - attempt.window_start > timedelta(minutes=15):
-            attempt.count, attempt.window_start = 0, now()
-        if attempt.count >= 10:
-            abort(429, description='Too many sign-in attempts. Try again in 15 minutes.')
+        consume_login_budget(email)
         u = db.session.scalar(select(User).filter_by(email=email, active=True))
         valid = check_password_hash(u.password_hash if u else DUMMY_HASH, password)
         if not u or not valid:
-            attempt.count += 1
-            db.session.commit()
             flash('Email or password was not recognized.', 'error')
             return render_template('login.html'), 401
-        attempt.count = 0
-        session.clear()
-        session['user_id'] = u.id
-        session['session_version'] = u.session_version
-        session.permanent = True
+        reset_account_budget(email)
+        start_session(u)
         audit(u.id, 'user', u.id, 'signed in')
         db.session.commit()
         return redirect(url_for('web.dashboard'))
@@ -157,6 +149,9 @@ def login():
 @bp.post('/logout')
 @signed_in
 def logout():
+    revoke_current_session()
+    audit(g.user.id, 'user', g.user.id, 'signed out')
+    db.session.commit()
     session.clear()
     return redirect(url_for('web.login'))
 
@@ -272,9 +267,7 @@ def save_risk(risk_id):
         abort(400, description='Every action needs an owner and due date.')
     selected = []
     for value in request.form.getlist('evidence_ids'):
-        if not value.isdigit():
-            abort(400)
-        e = db.get_or_404(Evidence, int(value))
+        e = db.get_or_404(Evidence, record_id(value))
         if e.assessment_id != a.id and not (a.system.vendor_id and e.vendor_id == a.system.vendor_id):
             abort(403, description='Evidence must belong to this assessment or its vendor.')
         selected.append(e)
@@ -353,6 +346,8 @@ def submit(assessment_id):
 def reopen(assessment_id):
     a = db.get_or_404(Assessment, assessment_id)
     reviewer()
+    if not independent(a):
+        abort(403, description='An independent reviewer must return the assessment for changes.')
     if a.state != 'in_review':
         abort(409, description='Decided assessments are immutable. Create a new assessment for follow-up.')
     if stale(a):
@@ -517,18 +512,26 @@ def setup():
         abort(404)
     if db.session.scalar(select(User.id).limit(1)):
         return redirect(url_for('web.login'))
+    if request.method == 'GET' and accept_setup_link():
+        return redirect(url_for('web.setup'))
+    if not setup_access():
+        abort(403, description='Open the private setup link shown by the local launcher, or create the first account with the administrator CLI.')
     if request.method == 'POST':
         email, name, password = text('email', 254, True).lower(), text('name', 100, True), text('password', 1024, True)
         if '@' not in email or len(password) < 12:
             abort(400, description='Use a valid email and a password of at least 12 characters.')
         u = User(email=email, name=name, password_hash=generate_password_hash(password), role='admin')
+        db.session.add(SetupClaim(id=1))
+        try:
+            db.session.flush()
+        except IntegrityError:
+            db.session.rollback()
+            abort(409, description='Workspace setup was already completed. Sign in with the created account.')
         db.session.add(u)
         db.session.flush()
         audit(u.id, 'user', u.id, 'workspace initialized')
+        start_session(u)
         db.session.commit()
-        session.clear()
-        session.update(user_id=u.id, session_version=u.session_version)
-        session.permanent = True
         return redirect(url_for('web.team'))
     return render_template('setup.html')
 
@@ -563,6 +566,7 @@ def toggle_user(user_id):
     u = db.get_or_404(User, user_id)
     u.active = not u.active
     u.session_version += 1
+    db.session.execute(delete(AuthSession).where(AuthSession.user_id == u.id))
     audit(g.user.id, 'user', u.id, 'account enabled' if u.active else 'account disabled')
     db.session.commit()
     return redirect(url_for('web.team'))
@@ -577,7 +581,8 @@ def account():
             abort(400, description='Supply the current password and a new password of at least 12 characters.')
         g.user.password_hash = generate_password_hash(new)
         g.user.session_version += 1
-        session['session_version'] = g.user.session_version
+        db.session.execute(delete(AuthSession).where(AuthSession.user_id == g.user.id))
+        start_session(g.user)
         audit(g.user.id, 'user', g.user.id, 'password changed')
         db.session.commit()
         flash('Password changed. Your other sessions have been revoked.', 'success')

@@ -6,6 +6,7 @@ services:
     environment:
       APP_ENV: production
       SECRET_KEY: ${SECRET_KEY:?Set a random SECRET_KEY of at least 32 characters}
+      AIRISK_TRUSTED_HOSTS: ${AIRISK_TRUSTED_HOSTS:-localhost,127.0.0.1,[::1]}
     volumes:
       - airisk-data:/app/instance
     restart: unless-stopped

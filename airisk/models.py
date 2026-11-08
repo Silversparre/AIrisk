@@ -159,6 +159,17 @@ class LoginAttempt(db.Model):
     window_start = db.Column(db.DateTime, nullable=False, default=now)
 
 
+class AuthSession(db.Model):
+    token_hash = db.Column(db.String(64), primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    expires_at = db.Column(db.DateTime, nullable=False, index=True)
+
+
+class SetupClaim(db.Model):
+    """A unique row makes first-account creation a single atomic operation."""
+    id = db.Column(db.Integer, primary_key=True)
+
+
 class ClaudeExchange(db.Model):
     """Human-initiated web handoff; imported content stays advisory until accepted."""
     id = db.Column(db.Integer, primary_key=True)
